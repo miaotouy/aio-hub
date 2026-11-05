@@ -13,8 +13,11 @@
 // limitations under the License.
 
 #![allow(unused_imports)]
+#[path = "index/db.rs"]
 pub mod db;
+#[path = "index/inverted_index.rs"]
 pub mod inverted_index;
+#[path = "index/vector_matrix.rs"]
 pub mod vector_matrix;
 
 pub use db::*;

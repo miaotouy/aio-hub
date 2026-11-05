@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::recall::core::RecallResult;
 use crate::recall::index::InMemoryDatabase;
 use crate::recall::ops::warmup_recall_repository;
 use crate::recall::retrieval_modules::production_module_registry;
@@ -25,16 +24,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 pub type EmbeddingCache = HashMap<String, (Vec<f32>, u64)>;
 
-/// 缓存的检索结果（含可选查询向量）
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CachedRetrievalEntry {
-    pub results: Vec<RecallResult>,
-    pub vector: Option<Vec<f32>>,
-}
-
-/// Key 为 SHA-256 字符串，Value 为 (结果, 最后访问时间戳)
-pub type RetrievalCache = HashMap<String, (CachedRetrievalEntry, u64)>;
+pub use crate::recall::retrieval_cache::{CachedRetrievalEntry, RetrievalCache};
 
 pub struct RecallState {
     // 互斥锁保护，防止并发写入导致冲突

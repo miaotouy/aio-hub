@@ -251,10 +251,9 @@ mod tests {
         let path = temp.path().join("note.txt");
         let arg = path.to_string_lossy().to_string();
         let mut security = scope(temp.path());
-        security.allowed_directories.extend(
-            ["Desktop", "Documents", "Downloads", ""]
-                .map(str::to_owned),
-        );
+        security
+            .allowed_directories
+            .extend(["Desktop", "Documents", "Downloads", ""].map(str::to_owned));
         // 有效目录位于旧条目前后时均可授权。
         for _ in 0..2 {
             fs::write(&path, "original").unwrap();
@@ -280,9 +279,11 @@ mod tests {
         let outside_path = outside.path().join("note.txt");
         fs::write(&outside_path, "protected").unwrap();
         let outside_arg = outside_path.to_string_lossy().to_string();
-        assert!(read_text_file_force(outside_arg.clone(), Some(security.clone()))
-            .await
-            .is_err());
+        assert!(
+            read_text_file_force(outside_arg.clone(), Some(security.clone()))
+                .await
+                .is_err()
+        );
         assert!(write_text_file_force(
             outside_arg,
             "blocked".into(),

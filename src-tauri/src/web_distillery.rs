@@ -12,11 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod crypto;
-pub mod fetcher;
-pub mod net;
-pub mod proxy;
-
-pub use crypto::*;
-pub use fetcher::*;
-pub use proxy::*;
+#[path = "web_distillery/commands.rs"]
+mod commands;
+#[path = "web_distillery/core.rs"]
+mod core;
+pub use commands::*;

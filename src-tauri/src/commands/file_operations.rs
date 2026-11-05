@@ -393,35 +393,7 @@ mod plugin_platform_tests {
     }
 }
 
-// 进度事件结构体
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CopyProgress {
-    pub current_file: String,
-    pub copied_bytes: u64,
-    pub total_bytes: u64,
-    pub progress_percentage: f64,
-}
-
-// 操作日志条目
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OperationLog {
-    pub timestamp: u64,
-    pub operation_type: String, // "move" 或 "link-only"
-    pub link_type: String,      // "symlink" 或 "link"
-    pub source_count: usize,
-    pub success_count: usize,
-    pub error_count: usize,
-    pub errors: Vec<String>,
-    #[serde(default)]
-    pub warnings: Vec<String>,
-    pub duration_ms: u128,
-    pub target_directory: String,     // 目标目录
-    pub source_paths: Vec<String>,    // 源文件路径列表
-    pub total_size: u64,              // 总文件大小（字节）
-    pub processed_files: Vec<String>, // 成功处理的文件名列表
-}
+pub use crate::file_operation_types::OperationLog;
 
 // 全局操作日志历史（最多保存100条）
 lazy_static! {
@@ -841,45 +813,6 @@ fn process_single_file(
 }
 
 // 检测是否跨盘/跨设备移动
-fn is_cross_device(source: &Path, target_dir: &Path) -> bool {
-    #[cfg(windows)]
-    {
-        // Windows: 比较盘符（如 C:\ 和 E:\）
-        let source_prefix = source.components().find_map(|c| {
-            if let Component::Prefix(prefix) = c {
-                Some(prefix.as_os_str().to_owned())
-            } else {
-                None
-            }
-        });
-
-        let target_prefix = target_dir.components().find_map(|c| {
-            if let Component::Prefix(prefix) = c {
-                Some(prefix.as_os_str().to_owned())
-            } else {
-                None
-            }
-        });
-
-        source_prefix != target_prefix
-    }
-
-    #[cfg(unix)]
-    {
-        // Unix: 比较设备 ID
-        use std::os::unix::fs::MetadataExt;
-        if let (Ok(source_meta), Ok(target_meta)) = (source.metadata(), target_dir.metadata()) {
-            source_meta.dev() != target_meta.dev()
-        } else {
-            false
-        }
-    }
-
-    #[cfg(not(any(windows, unix)))]
-    {
-        false
-    }
-}
 
 fn resolve_path_for_security_impl(path: &Path) -> Result<PathBuf, String> {
     if !path.is_absolute() {
@@ -1449,90 +1382,24 @@ pub fn get_file_mime_type(path: String) -> Result<String, String> {
     Ok(crate::utils::mime::guess_mime_type(file_path))
 }
 
-// 文件验证结果
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FileValidation {
-    pub is_directory: bool,
-    pub is_cross_device: bool,
-    pub exists: bool,
-}
+pub use crate::file_operation_types::FileValidation;
 
-// Tauri 命令：验证文件属性（用于硬链接检查）
 #[tauri::command]
 pub fn validate_file_for_link(
     source_path: String,
     target_dir: String,
     link_type: String,
 ) -> Result<FileValidation, String> {
-    let source = PathBuf::from(&source_path);
-    let target = PathBuf::from(&target_dir);
-
-    if !source.exists() {
-        return Ok(FileValidation {
-            is_directory: false,
-            is_cross_device: false,
-            exists: false,
-        });
-    }
-
-    let is_dir = source.is_dir();
-
-    // 只有硬链接需要检查跨设备
-    let is_cross_dev = if link_type == "link" {
-        if target.exists() {
-            is_cross_device(&source, &target)
-        } else {
-            false
-        }
-    } else {
-        false
-    };
-
-    Ok(FileValidation {
-        is_directory: is_dir,
-        is_cross_device: is_cross_dev,
-        exists: true,
-    })
+    crate::symlink_mover::validate_file_for_link(source_path, target_dir, link_type)
 }
 
-// Tauri 命令：批量验证文件属性（前端一次 IPC 获取全部结果，避免 N+1 问题）
 #[tauri::command]
 pub fn validate_files_for_link(
     source_paths: Vec<String>,
     target_dir: String,
     link_type: String,
 ) -> Vec<FileValidation> {
-    let target = PathBuf::from(&target_dir);
-    let target_exists = target.exists();
-
-    source_paths
-        .iter()
-        .map(|source_path_str| {
-            let source = PathBuf::from(source_path_str);
-
-            if !source.exists() {
-                return FileValidation {
-                    is_directory: false,
-                    is_cross_device: false,
-                    exists: false,
-                };
-            }
-
-            let is_dir = source.is_dir();
-            let is_cross_dev = if link_type == "link" && target_exists {
-                is_cross_device(&source, &target)
-            } else {
-                false
-            };
-
-            FileValidation {
-                is_directory: is_dir,
-                is_cross_device: is_cross_dev,
-                exists: true,
-            }
-        })
-        .collect()
+    crate::symlink_mover::validate_files_for_link(source_paths, target_dir, link_type)
 }
 
 // Tauri 命令：保存上传的文件到应用数据目录

@@ -23,97 +23,15 @@ fn repository_pool(
     state.tag_pool.get_or_insert_pool(pool)
 }
 
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BaseVectorStats {
-    pub total: usize,
-    pub vectorized: usize,
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LibraryStats {
-    pub total_bases: usize,
-    pub total_entries: usize,
-    pub vectorized_entries: usize,
-    pub total_tokens: usize,
-    pub all_discovered_tags: Vec<String>,
-    pub tag_usage_stats: std::collections::HashMap<String, usize>,
-    pub bases_stats: std::collections::HashMap<String, BaseVectorStats>,
-}
+#[allow(unused_imports)]
+pub use crate::recall::statistics::{BaseVectorStats, LibraryStats};
 
 #[tauri::command]
 pub async fn recall_get_library_stats(
     state: State<'_, RecallState>,
     model_id: String,
 ) -> Result<LibraryStats, String> {
-    log::info!("[KB_STATS] 获取库统计信息, model_id: {}", model_id);
-    let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
-
-    let recall_count = imdb.bases.len();
-
-    let mut total_entries = 0;
-    let mut vectorized_entries = 0;
-    let mut total_tokens = 0;
-    let mut all_tags_set = std::collections::HashSet::new();
-    let mut tag_usage_stats = std::collections::HashMap::new();
-    let mut bases_stats = std::collections::HashMap::new();
-
-    for (recall_id, base_lock) in imdb.bases.iter() {
-        let base = base_lock.read().map_err(|_| "获取思绪集读锁失败")?;
-        let recall_id_str = recall_id.to_string();
-
-        let mut recall_total = 0;
-        let mut recall_vectorized = 0;
-
-        let is_model_match = base.vector_store.model_id == model_id;
-
-        for entry in base.entries.values() {
-            recall_total += 1;
-            for tag in &entry.tags {
-                all_tags_set.insert(tag.name.clone());
-                *tag_usage_stats.entry(tag.name.clone()).or_insert(0) += 1;
-            }
-
-            if is_model_match && base.vector_store.ids.contains(&entry.id) {
-                vectorized_entries += 1;
-                recall_vectorized += 1;
-            }
-        }
-
-        total_entries += recall_total;
-        total_tokens += base.vector_store.total_tokens;
-
-        bases_stats.insert(
-            recall_id_str,
-            BaseVectorStats {
-                total: recall_total,
-                vectorized: recall_vectorized,
-            },
-        );
-    }
-
-    let mut all_discovered_tags: Vec<String> = all_tags_set.into_iter().collect();
-    all_discovered_tags.sort();
-
-    log::info!(
-        "[KB_STATS] 统计完成: {} 个思绪集, {} 个条目, {} 个已向量化条目, {} 个标签, 总 tokens: {}",
-        recall_count,
-        total_entries,
-        vectorized_entries,
-        all_discovered_tags.len(),
-        total_tokens
-    );
-
-    Ok(LibraryStats {
-        total_bases: imdb.bases.len(),
-        total_entries,
-        vectorized_entries,
-        total_tokens,
-        all_discovered_tags,
-        tag_usage_stats,
-        bases_stats,
-    })
+    crate::recall::statistics::library_stats(state.repository()?.as_ref(), &model_id)
 }
 
 #[derive(serde::Serialize)]

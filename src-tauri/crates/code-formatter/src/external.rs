@@ -37,7 +37,7 @@ pub struct FormatterStatus {
     pub error: Option<String>,
 }
 
-fn engine(language: &str) -> Result<&'static str, String> {
+pub fn engine(language: &str) -> Result<&'static str, String> {
     match language {
         "rust" => Ok("rustfmt"),
         "c" | "cpp" => Ok("clang-format"),
@@ -182,6 +182,78 @@ pub async fn status(language: &str, path: Option<&str>) -> FormatterStatus {
     }
 }
 
+/// Shared argv contract for both desktop hosts; code is always supplied through stdin.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalPlan {
+    pub engine: String,
+    pub executable: String,
+    pub args: Vec<String>,
+}
+pub fn build_plan(
+    language: &str,
+    options: &FormatOptions,
+    scratch: &std::path::Path,
+) -> Result<ExternalPlan, String> {
+    let engine = engine(language)?;
+    let path = options
+        .formatter_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+    if path.is_some_and(|value| !std::path::Path::new(value).is_absolute()) {
+        return Err("格式化器路径需为可执行文件的绝对路径".into());
+    }
+    let width = options.print_width.unwrap_or(80);
+    let indent = options
+        .tab_width
+        .unwrap_or(if language == "rust" { 4 } else { 2 });
+    if !(1..=1000).contains(&width) || !(1..=16).contains(&indent) {
+        return Err("换行宽度需为 1–1000，缩进宽度需为 1–16".into());
+    }
+    let args = if language == "rust" {
+        let edition = options.rust_edition.as_deref().unwrap_or("2024");
+        if !matches!(edition, "2015" | "2018" | "2021" | "2024") {
+            return Err("Rust edition 支持 2015、2018、2021、2024".into());
+        }
+        vec![
+            "--emit".into(),
+            "stdout".into(),
+            "--edition".into(),
+            edition.into(),
+            "--config-path".into(),
+            scratch.join("rustfmt.toml").to_string_lossy().into_owned(),
+            "--config".into(),
+            format!(
+                "skip_children=true,max_width={width},tab_spaces={indent},hard_tabs={},newline_style=Unix",
+                options.use_tabs.unwrap_or(false)
+            ),
+        ]
+    } else {
+        vec![
+            if language == "c" {
+                "--assume-filename=snippet.c"
+            } else {
+                "--assume-filename=snippet.cpp"
+            }
+            .into(),
+            format!(
+                "--style={{BasedOnStyle: LLVM, ColumnLimit: {width}, IndentWidth: {indent}, TabWidth: {indent}, UseTab: {}, UseCRLF: false}}",
+                if options.use_tabs.unwrap_or(false) {
+                    "Always"
+                } else {
+                    "Never"
+                }
+            ),
+        ]
+    };
+    Ok(ExternalPlan {
+        engine: engine.into(),
+        executable: path.unwrap_or(engine).into(),
+        args,
+    })
+}
+
 pub async fn format(
     code: String,
     language: &str,
@@ -194,38 +266,15 @@ pub async fn format(
     if code.len() > INPUT_LIMIT {
         return Err("代码超过 4 MiB，请分段格式化".into());
     }
-    let width = options.print_width.unwrap_or(80);
-    let indent = options
-        .tab_width
-        .unwrap_or(if language == "rust" { 4 } else { 2 });
-    if !(1..=1000).contains(&width) || !(1..=16).contains(&indent) {
-        return Err("换行宽度需为 1–1000，缩进宽度需为 1–16".into());
-    }
-    let mut command = command(engine, options.formatter_path.as_deref())?;
     let scratch =
         tempfile::tempdir().map_err(|error| format!("创建格式化工作目录失败：{error}"))?;
-    command.current_dir(scratch.path());
+    let plan = build_plan(language, &options, scratch.path())?;
     if language == "rust" {
-        let edition = options.rust_edition.as_deref().unwrap_or("2024");
-        if !matches!(edition, "2015" | "2018" | "2021" | "2024") {
-            return Err("Rust edition 支持 2015、2018、2021、2024".into());
-        }
-        let config = scratch.path().join("rustfmt.toml");
-        std::fs::write(&config, "").map_err(|error| format!("创建格式化配置失败：{error}"))?;
-        command.args(["--emit", "stdout", "--edition", edition, "--config-path"])
-            .arg(config).arg("--config").arg(format!(
-                "skip_children=true,max_width={width},tab_spaces={indent},hard_tabs={},newline_style=Unix",
-                options.use_tabs.unwrap_or(false)
-            ));
-    } else {
-        command.arg(if language == "c" {
-            "--assume-filename=snippet.c"
-        } else {
-            "--assume-filename=snippet.cpp"
-        });
-        command.arg(format!("--style={{BasedOnStyle: LLVM, ColumnLimit: {width}, IndentWidth: {indent}, TabWidth: {indent}, UseTab: {}, UseCRLF: false}}",
-            if options.use_tabs.unwrap_or(false) { "Always" } else { "Never" }));
+        std::fs::write(scratch.path().join("rustfmt.toml"), "")
+            .map_err(|e| format!("创建格式化配置失败：{e}"))?;
     }
+    let mut command = command(engine, options.formatter_path.as_deref())?;
+    command.current_dir(scratch.path()).args(plan.args);
     let (exit, stdout, stderr) = run(command, code.as_bytes(), Duration::from_secs(10))
         .await
         .map_err(|error| format!("{engine}：{error}；{}", installation_hint(engine)))?;

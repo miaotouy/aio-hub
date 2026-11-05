@@ -12,15 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub(crate) mod backup_archive;
+pub(crate) mod backup_conversion;
 pub mod commands;
 pub mod core;
+pub mod entry_import;
 pub mod index;
 pub mod io;
 pub mod monitor;
+pub mod monitor_types;
 pub mod ops;
+pub mod retrieval_cache;
 pub mod retrieval_modules;
 pub mod retrieval_pipeline;
 pub mod state;
+pub mod statistics;
 pub mod storage;
 pub mod tag_pool;
 pub mod utils;

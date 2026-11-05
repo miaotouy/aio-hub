@@ -54,6 +54,16 @@
 
   window.__DISTILLERY_BRIDGE__ = {
     send(payload) {
+      if (payload.url && window.__DISTILLERY_TARGET_URL__) {
+        try {
+          const source = new URL(payload.url, location.href);
+          const target = new URL(window.__DISTILLERY_TARGET_URL__);
+          if (source.origin === location.origin) {
+            payload = { ...payload, url: source.pathname === "/proxy" ? target.href
+              : new URL(source.pathname + source.search + source.hash, target.origin).href };
+          }
+        } catch {}
+      }
       const finalPayload = { nonce: NONCE, ...payload };
       console.log("[Distillery Bridge] Sending message:", payload.type);
 
@@ -97,7 +107,7 @@
   // 监听来自父窗口的命令
   if (isIframe) {
     window.addEventListener('message', (event) => {
-      if (event.data && event.data.type === '__distillery_eval') {
+      if (event.source === window.parent && event.data && event.data.type === '__distillery_eval') {
         try {
           // 安全提示：虽然 eval 有风险，但在受控的本地代理环境下是必要的
           (0, eval)(event.data.script);

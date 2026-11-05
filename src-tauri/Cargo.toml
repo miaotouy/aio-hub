@@ -145,6 +145,7 @@ windows = { version = "0.58", features = [
     "Media_Control",
     "Win32_UI_Shell",
     "Win32_System_Com",
+    "Win32_System_WinRT",
 ] }
 
 # macOS 特定依赖

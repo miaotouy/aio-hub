@@ -6,7 +6,7 @@ pub mod commands;
 mod repository;
 pub mod types;
 
-use repository::KnowledgeRepository;
+pub(crate) use repository::KnowledgeRepository;
 use std::sync::{Arc, RwLock};
 
 pub struct KnowledgeState {

@@ -20,23 +20,10 @@ use crate::recall::monitor::{
 use crate::recall::state::RecallState;
 use crate::recall::utils::*;
 use rayon::prelude::*;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ImportConfig {
-    pub auto_extract_tags: bool,
-    pub auto_extract_title: bool,
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BatchImportResult {
-    pub entries: Vec<RecallEntry>,
-    pub skipped_count: usize,
-    pub duplicate_count: usize,
-}
+pub use crate::recall::entry_import::{BatchImportResult, ImportConfig};
 
 #[tauri::command]
 pub async fn recall_load_entry(
@@ -202,182 +189,51 @@ pub async fn recall_batch_import_files(
     deduplicate: bool,
     config: ImportConfig,
 ) -> Result<BatchImportResult, String> {
-    let start_time = std::time::Instant::now();
-
-    let total_paths = paths.len();
-
-    // 发送开始索引监控事件
-    let _ = emit_monitor_event(
-        &app,
-        RecallMonitorEvent::Index(IndexPayload {
-            steps: vec![RecallMonitorStep {
-                name: "文件扫描".to_string(),
-                status: RecallStepStatus::Running,
-                duration: 0,
-                details: Some(format!("准备处理 {} 个文件", total_paths)),
-            }],
-            stats: IndexStats {
-                total_files: total_paths as u32,
-                processed_files: 0,
-                total_chunks: 0,
-                vectorized_chunks: 0,
-                duration: 0,
-            },
-            metadata: Some(IndexMetadata {
-                recall_id: recall_id.to_string(),
-                model_id: "".to_string(), // 导入阶段暂无模型
-                file_patterns: vec![],
-            }),
-        }),
-        RecallMonitorLevel::Info,
-        "开始导入文件",
-        &format!("正在处理 {} 个文件", total_paths),
-        "Indexer",
-    );
-
-    let candidates: Vec<RecallEntry> = paths
-        .into_par_iter()
-        .enumerate()
-        .filter_map(|(idx, path_str)| {
-            let path = std::path::Path::new(&path_str);
-
-            // 进度推送 (每处理 5 个文件推送一次，避免过于频繁)
-            if idx > 0 && idx % 5 == 0 {
-                let _ = emit_monitor_event(
-                    &app,
-                    RecallMonitorEvent::Index(IndexPayload {
-                        steps: vec![RecallMonitorStep {
-                            name: "文件扫描".to_string(),
-                            status: RecallStepStatus::Running,
-                            duration: start_time.elapsed().as_millis() as u64,
-                            details: Some(format!("正在处理第 {}/{} 个文件", idx + 1, total_paths)),
-                        }],
-                        stats: IndexStats {
-                            total_files: total_paths as u32,
-                            processed_files: idx as u32,
-                            total_chunks: idx as u32,
-                            vectorized_chunks: 0,
-                            duration: start_time.elapsed().as_millis() as u64,
-                        },
-                        metadata: Some(IndexMetadata {
-                            recall_id: recall_id.to_string(),
-                            model_id: "".to_string(),
-                            file_patterns: vec![],
-                        }),
-                    }),
-                    RecallMonitorLevel::Info,
-                    "正在导入文件",
-                    &format!("处理进度: {}/{}", idx + 1, total_paths),
-                    "Indexer",
-                );
-            }
-
-            if !crate::utils::mime::is_text_file(path) {
-                return None;
-            }
-
-            let content = std::fs::read_to_string(path).ok()?;
-            let filename = path.file_name()?.to_str()?;
-            let mut key = filename.split('.').next()?.to_string();
-
-            if config.auto_extract_title {
-                if let Some(title) = extract_title_from_content(&content) {
-                    key = title;
-                }
-            }
-
-            let tags = if config.auto_extract_tags {
-                extract_tags_from_content(&content)
-                    .into_iter()
-                    .map(|name| {
-                        let hash = calculate_content_hash(&name);
-                        crate::recall::core::TagWithWeight {
-                            name,
-                            weight: 1.0,
-                            hash,
-                        }
-                    })
-                    .collect()
-            } else {
-                vec![]
-            };
-
-            let now = get_now();
-            let content_hash = calculate_content_hash(&content);
-
-            Some(RecallEntry {
-                id: Uuid::new_v4(),
-                key,
-                content: content.clone(),
-                content_hash: Some(content_hash),
-                tags,
-                core_tags: vec![],
-                assets: vec![],
-                priority: 100,
-                enabled: true,
-                created_at: now,
-                updated_at: now,
-                summary: generate_summary(&content),
-                error_message: None,
-                refs: vec![],
-                ref_by: vec![],
-            })
+    use crate::recall::entry_import::{monitor_message, scan_files, ImportOutcome};
+    let started = std::time::Instant::now();
+    let total = paths.len();
+    let send = |processed, chunks, outcome| {
+        let _ = app.emit(
+            "recall-monitor",
+            monitor_message(
+                recall_id,
+                total,
+                processed,
+                chunks,
+                started.elapsed().as_millis() as u64,
+                outcome,
+            ),
+        );
+    };
+    send(0, 0, ImportOutcome::Scanning);
+    let result = (|| {
+        if state.repository()?.load_collection(recall_id)?.is_none() {
+            return Err("找不到目标思绪集".to_string());
+        }
+        let candidates = scan_files(&paths, &config, |processed, chunks| {
+            send(processed, chunks, ImportOutcome::Scanning)
+        });
+        let skipped_count = total - candidates.len();
+        let (entries, duplicate_count) =
+            persist_batch_entries(&state, recall_id, candidates, deduplicate)?;
+        Ok(BatchImportResult {
+            entries,
+            skipped_count,
+            duplicate_count,
         })
-        .collect();
-
-    let skipped_count = total_paths - candidates.len();
-
-    let (entries, duplicate_count) =
-        persist_batch_entries(&state, recall_id, candidates, deduplicate)?;
-
-    let duration = start_time.elapsed().as_millis() as u64;
-    let imported_count = entries.len();
-
-    // 发送完成监控事件
-    let _ = emit_monitor_event(
-        &app,
-        RecallMonitorEvent::Index(IndexPayload {
-            steps: vec![
-                RecallMonitorStep {
-                    name: "文件扫描".to_string(),
-                    status: RecallStepStatus::Completed,
-                    duration: duration / 2, // 估算
-                    details: Some(format!("扫描到 {} 个文件", total_paths)),
-                },
-                RecallMonitorStep {
-                    name: "文本提取".to_string(),
-                    status: RecallStepStatus::Completed,
-                    duration: duration / 2, // 估算
-                    details: Some(format!("成功提取 {} 个条目", imported_count)),
-                },
-            ],
-            stats: IndexStats {
-                total_files: total_paths as u32,
-                processed_files: imported_count as u32,
-                total_chunks: imported_count as u32,
-                vectorized_chunks: 0,
-                duration,
+    })();
+    match &result {
+        Ok(result) => send(
+            total,
+            result.entries.len(),
+            ImportOutcome::Completed {
+                skipped: result.skipped_count,
+                duplicates: result.duplicate_count,
             },
-            metadata: Some(IndexMetadata {
-                recall_id: recall_id.to_string(),
-                model_id: "".to_string(),
-                file_patterns: vec![],
-            }),
-        }),
-        RecallMonitorLevel::Success,
-        "文件导入完成",
-        &format!(
-            "成功导入 {} 个条目，跳过 {} 个，重复 {} 个",
-            imported_count, skipped_count, duplicate_count
         ),
-        "Indexer",
-    );
-
-    Ok(BatchImportResult {
-        entries,
-        skipped_count,
-        duplicate_count,
-    })
+        Err(error) => send(0, 0, ImportOutcome::Failed(error.clone())),
+    }
+    result
 }
 
 #[tauri::command]

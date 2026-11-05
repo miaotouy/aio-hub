@@ -27,6 +27,7 @@ pub trait RecallRepository: Send + Sync {
     fn list_collections(&self) -> Result<Vec<RecallCollectionMeta>, String>;
     fn load_collection(&self, collection_id: Uuid) -> Result<Option<RecallCollection>, String>;
     fn save_collection(&self, collection: &RecallCollection) -> Result<(), String>;
+    fn restore_collection(&self, collection: &RecallCollection) -> Result<(), String>;
     fn delete_collection(&self, collection_id: Uuid) -> Result<(), String>;
 
     fn load_entries(&self, collection_id: Uuid) -> Result<Vec<RecallEntry>, String>;
@@ -68,4 +69,5 @@ pub trait RecallRepository: Send + Sync {
 
     fn load_tag_pool(&self, model_id: &str) -> Result<ModelTagPool, String>;
     fn save_tag_pool(&self, pool: &ModelTagPool) -> Result<(), String>;
+    fn list_tag_pool_models(&self) -> Result<Vec<String>, String>;
 }

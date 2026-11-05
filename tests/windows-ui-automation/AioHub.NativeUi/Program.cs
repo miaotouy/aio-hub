@@ -74,6 +74,12 @@ internal static class NativeUiProgram
                 case "select-folder":
                     SelectFolder(dialog, options.Paths.Single());
                     break;
+                case "save-file":
+                    SaveFile(dialog, options.Paths.Single());
+                    break;
+                case "cancel-dialog":
+                    CancelDialog(dialog);
+                    break;
                 case "dump-tree":
                     break;
                 default:
@@ -175,26 +181,55 @@ internal static class NativeUiProgram
             }
         }
 
-        // Type absolute paths directly into the file-name field. This avoids
-        // depending on the address-bar breadcrumb layout, where clicking the
-        // toolbar center can select a breadcrumb segment instead of entering
-        // edit mode when the dialog remembers a previously visited directory.
+        // Absolute paths avoid dependencies on the remembered breadcrumb layout.
+        SetFileName(dialog, paths.Count == 1
+            ? paths[0]
+            : string.Join(" ", paths.Select(path => $"\"{path}\"")));
+        ConfirmDialog(dialog);
+    }
+
+    private static void SaveFile(Window dialog, string path)
+    {
+        if (!Directory.Exists(Path.GetDirectoryName(path)))
+        {
+            throw new NativeUiException($"The save target parent does not exist: {path}");
+        }
+        if (File.Exists(path) || Directory.Exists(path))
+        {
+            throw new NativeUiException($"The save fixture target must be new: {path}");
+        }
+        SetFileName(dialog, path);
+        ConfirmDialog(dialog);
+    }
+
+    private static void SetFileName(Window dialog, string value)
+    {
         var fileNameEdit = dialog.FindFirstDescendant(cf =>
             cf.ByAutomationId("1148").And(cf.ByControlType(ControlType.Edit)))
-            ?? throw new NativeUiException("The file picker file-name editor was not found.");
-        var valuePattern = fileNameEdit.Patterns.Value;
-        if (!valuePattern.IsSupported)
+            ?? dialog.FindFirstDescendant(cf => cf.ByAutomationId("FileNameControlHost"))
+                ?.FindFirstDescendant(cf => cf.ByAutomationId("1001").And(cf.ByControlType(ControlType.Edit)))
+            ?? throw new NativeUiException("The native picker file-name editor was not found.");
+        if (!fileNameEdit.Patterns.Value.IsSupported)
         {
-            throw new NativeUiException("The file picker file-name editor does not support ValuePattern.");
+            throw new NativeUiException("The native picker file-name editor does not support ValuePattern.");
         }
-        var fileNameValue = paths.Count == 1
-            ? paths[0]
-            : string.Join(" ", paths.Select(path => $"\"{path}\""));
-        valuePattern.Pattern.SetValue(fileNameValue);
+        fileNameEdit.Patterns.Value.Pattern.SetValue(value);
+    }
 
+    private static void ConfirmDialog(Window dialog)
+    {
         var confirmButton = FindConfirmButton(dialog)
-            ?? throw new NativeUiException("The file picker confirm button was not found.");
+            ?? throw new NativeUiException("The native picker confirm button was not found.");
         confirmButton.Patterns.Invoke.Pattern.Invoke();
+        WaitUntilClosed(dialog);
+    }
+
+    private static void CancelDialog(Window dialog)
+    {
+        var cancelButton = dialog.FindFirstDescendant(cf =>
+            cf.ByAutomationId("2").And(cf.ByControlType(ControlType.Button)))
+            ?? throw new NativeUiException("The native picker cancel button was not found.");
+        cancelButton.Patterns.Invoke.Pattern.Invoke();
         WaitUntilClosed(dialog);
     }
 
@@ -409,10 +444,14 @@ internal sealed record NativeUiOptions(
         if (args.Length == 0 || args[0] is "--help" or "-h")
         {
             throw new NativeUiException(
-                "Usage: AioHub.NativeUi <probe|select-files|select-folder|dump-tree> [--path PATH] [--process-name aiohub] [--process-id PID] [--timeout-ms 15000] [--artifact-dir PATH]");
+                "Usage: AioHub.NativeUi <probe|select-files|select-folder|save-file|cancel-dialog|dump-tree> [--path PATH] [--process-name aiohub] [--process-id PID] [--timeout-ms 15000] [--artifact-dir PATH]");
         }
 
         var command = args[0];
+        if (command is not ("probe" or "select-files" or "select-folder" or "save-file" or "cancel-dialog" or "dump-tree"))
+        {
+            throw new NativeUiException($"Unsupported command: {command}");
+        }
         var paths = new List<string>();
         var processName = "aiohub";
         int? processId = null;
@@ -453,13 +492,13 @@ internal sealed record NativeUiOptions(
             }
         }
 
-        if (command is "select-files" or "select-folder" && paths.Count == 0)
+        if (command is "select-files" or "select-folder" or "save-file" && paths.Count == 0)
         {
             throw new NativeUiException($"{command} requires at least one --path argument.");
         }
-        if (command == "select-folder" && paths.Count != 1)
+        if (command is "select-folder" or "save-file" && paths.Count != 1)
         {
-            throw new NativeUiException("select-folder requires exactly one --path argument.");
+            throw new NativeUiException($"{command} requires exactly one --path argument.");
         }
         if (timeoutMs is < 1_000 or > 120_000)
         {

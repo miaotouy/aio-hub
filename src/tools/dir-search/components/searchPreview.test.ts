@@ -19,7 +19,11 @@ import { invoke } from "@/platform/native/core";
 import { customMessage } from "@/utils/customMessage";
 import ResultItem from "./ResultItem.vue";
 import FilePreview from "./FilePreview.vue";
-import { searchMatchColumns } from "../searchText";
+import {
+  getSearchPreviewRange,
+  searchMatchColumns,
+  sliceSearchText,
+} from "../searchText";
 
 vi.mock("@/components/common/RichCodeEditor.vue", () => ({
   default: {
@@ -51,6 +55,20 @@ afterEach(() => {
 });
 
 describe("search preview text and file ownership", () => {
+  it("keeps the match inside the visible range for wide-character lines", () => {
+    const lineContent = "前文".repeat(80) + "needle" + "后文".repeat(80);
+    const narrow = getSearchPreviewRange(lineContent, 160, 166, 360);
+    const wide = getSearchPreviewRange(lineContent, 160, 166, 720);
+
+    expect(sliceSearchText(lineContent, narrow.start, narrow.end)).toContain(
+      "needle"
+    );
+    expect(sliceSearchText(lineContent, wide.start, wide.end)).toContain(
+      "needle"
+    );
+    expect(wide.end - wide.start).toBeGreaterThan(narrow.end - narrow.start);
+  });
+
   it("renders Unicode matches without splitting emoji, including cropped lines", () => {
     const lineContent = "🙂".repeat(90) + "needle" + "🙂".repeat(90);
     const w = mount(ResultItem, {

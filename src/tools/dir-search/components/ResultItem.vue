@@ -29,7 +29,7 @@
       popper-class="result-item-tooltip"
       :fallback-placements="['bottom', 'top']"
     >
-      <span class="result-item__content">
+      <span ref="contentRef" class="result-item__content">
         <template v-for="(part, idx) in highlightParts" :key="idx">
           <span v-if="part.isMatch" class="result-item__highlight">{{
             part.text
@@ -64,10 +64,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { X, Replace } from "lucide-vue-next";
 import type { SearchMatch, HighlightPart } from "../types";
-import { sliceSearchText } from "../searchText";
+import { getSearchPreviewRange, sliceSearchText } from "../searchText";
 
 const props = defineProps<{
   match: SearchMatch;
@@ -81,6 +81,26 @@ defineEmits<{
   replaceMatch: [];
   contextmenu: [event: MouseEvent];
 }>();
+
+const contentRef = ref<HTMLElement | null>(null);
+const contentWidth = ref(0);
+let resizeObserver: ResizeObserver | null = null;
+
+function updateContentWidth() {
+  contentWidth.value = contentRef.value?.clientWidth ?? 0;
+}
+
+onMounted(() => {
+  updateContentWidth();
+  if (typeof ResizeObserver === "undefined" || !contentRef.value) return;
+  resizeObserver = new ResizeObserver(updateContentWidth);
+  resizeObserver.observe(contentRef.value);
+});
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+});
 
 const tooltipContent = computed(() => {
   const content = Array.from(props.match.lineContent);
@@ -97,10 +117,13 @@ const highlightParts = computed<HighlightPart[]>(() => {
   const parts: HighlightPart[] = [];
   const characters = Array.from(lineContent);
 
-  // 截取显示范围（行内容可能很长，只显示匹配附近的内容）
-  const contextChars = 60;
-  const displayStart = Math.max(0, matchStart - contextChars);
-  const displayEnd = Math.min(characters.length, matchEnd + contextChars);
+  // 按实际可视宽度裁剪，避免全角文本把命中词推到省略号后面。
+  const { start: displayStart, end: displayEnd } = getSearchPreviewRange(
+    lineContent,
+    matchStart,
+    matchEnd,
+    contentWidth.value
+  );
 
   const displayContent = sliceSearchText(lineContent, displayStart, displayEnd);
   const adjustedStart = matchStart - displayStart;
@@ -161,7 +184,9 @@ const highlightParts = computed<HighlightPart[]>(() => {
 }
 
 .result-item__content {
+  display: block;
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

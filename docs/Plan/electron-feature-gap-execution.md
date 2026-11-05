@@ -375,6 +375,7 @@ LLM 流式搜索批次（2026-11-04）：
 - [x] Worker 到 Main 的内部配置/执行期 Key 通道、生产初始化握手及跨代次事务排空；配置和密钥操作复用窗口侧应用所有者，真实任务装配继续接线。
 - [x] 正式 Worker 持有附件/图片/Token 上下文资源池，接通 Main 当前文件策略及既有资产根服务，scope 与原生队列支持正常退出释放；真实工具/审批与任务入口继续接线。
 - [x] Worker 任务级多协议聊天模型服务、独立类型契约与 Main 系统代理能力；沿用原渠道/Key/协议映射，真实任务入口继续接线。
+- [x] Worker 模型 scope 的直连 Embedding 服务，复用 OpenAI 兼容、Gemini、Cohere、Vertex、Azure 和 DeepSeek 协议映射及 Node transport；虚拟渠道调度和真实 Agent 调用接线继续实施。
 - [ ] 真实 Agent 生成链接管、持久 `SessionEvent`、订阅游标与增量重放、审批重连、全部窗口销毁后的任务延续及完成通知。
 - [ ] 后台运行时 macOS/Linux 真实生命周期验证。
 - [x] Windows 窗口关闭/销毁和应用退出快照、最小化状态及新进程恢复。
@@ -699,3 +700,9 @@ Worker 多协议模型服务与共享契约批次（2026-11-05）：
 - 最终正式生产资源于北京时间 19:35:14–19:35:21 通过 5 组 Dev Control 检查：初始化与诊断、多窗口共享及 6 个内部方法拒绝页面转发、刷新和关闭附属窗口、持续心跳、结束正式 Worker 后新 PID/代次恢复。启动诊断为空；应用及记录的 utility 进程均已退出，开发实例列表为空。
 - 证据位于忽略目录 `.tmp/electron-worker-models/`：`node-tests.log`、`frontend-tests.log`、`frontend-check.log`、`build.log`、`utility-result.json`、`runtime-result.json`、`runtime.log` 和 `diagnostics.json`。早期主备夹具按当前同协议约束修正；utility 构建夹具调整为 CommonJS 异步入口后完成验证。
 - 生产聊天入口继续由 Renderer 持有；独立 fixture 的模型执行证明与正式 Worker 生命周期证明分别记录。真实工具/审批、PDF/Office/转写与 Recall/宿主宏、媒体/Embedding/ASR、响应/会话持久事件和全部窗口销毁后的任务存续继续接续。
+
+Worker Embedding 服务批次（2026-11-05）：
+
+- 为任务级模型 scope 增加 `sendEmbedding`，请求使用固定渠道配置、头模板快照与当前 scope 的 Node transport；支持 OpenAI 兼容、Gemini、Cohere、Vertex、Azure 和 DeepSeek 的共享协议映射。
+- 请求取消与 scope 释放共用已跟踪的在途操作；覆盖真实本地 HTTP 请求、请求头/请求 ID、向量结果以及释放时中止。
+- Worker 模型服务定向测试 20 项、Electron 类型检查、前端类型检查、平台隔离检查和 Vite 生产构建通过。Embedding 尚未接入真实 Agent/Recall 任务入口；虚拟渠道路由及媒体/ASR 服务仍保留待办。

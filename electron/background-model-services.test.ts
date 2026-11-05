@@ -8,6 +8,7 @@ import { BackgroundHostClient } from "./background-host-client";
 import type { HostServiceRequest } from "./background-host-protocol";
 import type { LlmProfile } from "../src/types/llm-profiles";
 import type { LlmRequestOptions } from "../src/llm-apis/types";
+import type { EmbeddingRequestOptions } from "../src/llm-apis/embedding-types";
 const headers = {
   appName: "AIO Hub",
   appVersion: "fixture",
@@ -37,15 +38,33 @@ let respond: (
   response: import("node:http").ServerResponse
 ) => void;
 let loadGate: Promise<void> | undefined;
+let requestObserved: (() => void) | undefined;
 beforeEach(async () => {
   calls = [];
   seen = [];
   profiles = [];
   loadGate = undefined;
+  requestObserved = undefined;
   respond = (request, response) => {
     response.setHeader("content-type", "application/json");
     let body: unknown;
-    if (request.url.includes(":generateContent"))
+    if (
+      request.url.includes("embedContent") ||
+      request.url.includes("batchEmbedContents")
+    )
+      body = { embedding: { values: [0.25, 0.75] } };
+    else if (request.url.includes("/v2/embed"))
+      body = { embeddings: { float: [[0.25, 0.75]] } };
+    else if (request.url.includes(":predict"))
+      body = { predictions: [{ embeddings: { values: [0.25, 0.75] } }] };
+    else if (request.url.includes("embeddings"))
+      body = {
+        object: "list",
+        data: [{ object: "embedding", index: 0, embedding: [0.25, 0.75] }],
+        model: "embedding-fixture",
+        usage: { prompt_tokens: 2, total_tokens: 2 },
+      };
+    else if (request.url.includes(":generateContent"))
       body = {
         candidates: [
           {
@@ -119,6 +138,7 @@ beforeEach(async () => {
       headers: request.headers,
     };
     seen.push(entry);
+    requestObserved?.();
     respond(entry, response);
   });
   server.listen(0, "127.0.0.1");
@@ -248,6 +268,59 @@ it.each([
     await scope.dispose();
   }
 );
+it.each([
+  ["openai-compatible", "/embeddings"],
+  ["gemini", "embedContent"],
+  ["cohere", "/v2/embed"],
+  ["vertexai", "publishers/google/"],
+  ["azure", "api-version="],
+  ["deepseek", "/embeddings"],
+] as const)(
+  "runs %s embeddings through the scope's Node transport",
+  async (type, path) => {
+    profiles = [profile(type)];
+    const scope = await service.createScope(options());
+    const request: EmbeddingRequestOptions = {
+      modelId: "embedding-fixture",
+      input: "background vector",
+      requestId: "embedding-request",
+    };
+    const result = await scope.sendEmbedding(type, request);
+    expect(result.data[0].embedding).toEqual([0.25, 0.75]);
+    expect(seen[0].url).toContain(path);
+    expect(seen[0].headers["x-fixture"]).toBe("AIO Hub/fixture/zh-CN");
+    if (type === "azure") {
+      expect(seen[0].headers["api-key"]).toBe("fixture-key");
+      expect(seen[0].headers.authorization).toBeUndefined();
+    } else if (type !== "gemini") {
+      expect(seen[0].headers.authorization).toBe("Bearer fixture-key");
+    }
+    if (type === "openai-compatible")
+      expect(seen[0].headers["x-request-id"]).toBe("embedding-request");
+    await scope.dispose();
+  }
+);
+it("aborts an in-flight embedding request when its task scope is released", async () => {
+  profiles = [profile("openai-compatible")];
+  respond = (_request, response) => {
+    response.setHeader("content-type", "application/json");
+    response.write('{"object":"list","data":');
+  };
+  const scope = await service.createScope(options());
+  const pending = scope.sendEmbedding("openai-compatible", {
+    modelId: "embedding-fixture",
+    input: "cancel me",
+  });
+  const rejected = expect(pending).rejects.toMatchObject({
+    name: "AbortError",
+  });
+  const observed = Promise.withResolvers<void>();
+  requestObserved = observed.resolve;
+  if (seen.length) observed.resolve();
+  await observed.promise;
+  await scope.dispose();
+  await rejected;
+});
 it("pins task configuration and header inputs, exposes defensive profile projections and refreshes on a new scope", async () => {
   expect(calls).toEqual([]);
   profiles = [profile("openai-compatible")];

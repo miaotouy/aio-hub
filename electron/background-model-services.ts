@@ -9,11 +9,13 @@ import {
   type ModelRequestPorts,
 } from "../src/llm-apis/execution/modelRequestExecutor";
 import { createChatAdapters } from "../src/llm-apis/execution/chatAdapters";
+import { createEmbeddingAdapters } from "../src/llm-apis/execution/embeddingAdapters";
 import {
   resolveHeaderTemplates,
   type HeaderTemplateContext,
 } from "../src/llm-apis/execution/headerTemplates";
 import type { LlmRequestOptions } from "../src/llm-apis/types";
+import type { EmbeddingRequestOptions } from "../src/llm-apis/embedding-types";
 
 type ScopeOptions = {
   signal?: AbortSignal;
@@ -145,6 +147,11 @@ export class BackgroundModelServices {
               })()
             ),
         });
+        const embeddingAdapters = createEmbeddingAdapters({
+          transport: native,
+          resolveCustomHeaders: (headers) =>
+            resolveHeaderTemplates(headers, input.headers),
+        });
         return {
           revision: snapshot.revision,
           getProfiles: () => structuredClone(profiles),
@@ -159,6 +166,32 @@ export class BackgroundModelServices {
             return track(
               executor.sendRequest({ ...request, signal: combined })
             );
+          },
+          sendEmbedding: (
+            profileId: string,
+            request: EmbeddingRequestOptions
+          ) => {
+            if (disposed)
+              return Promise.reject(
+                new DOMException("后台任务已释放", "AbortError")
+              );
+            const profile = profiles.find((item) => item.id === profileId);
+            if (!profile)
+              return Promise.reject(Error(`模型渠道不存在: ${profileId}`));
+            const adapter = (
+              embeddingAdapters as Record<
+                string,
+                typeof embeddingAdapters.openai | undefined
+              >
+            )[profile.type];
+            if (!adapter)
+              return Promise.reject(
+                Error(`渠道不支持后台 Embedding: ${profile.type}`)
+              );
+            const combined = request.signal
+              ? AbortSignal.any([signal, request.signal])
+              : signal;
+            return track(adapter(profile, { ...request, signal: combined }));
           },
           dispose,
         };

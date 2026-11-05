@@ -2,6 +2,7 @@ import { chromium, type Browser, type Page } from "playwright-core";
 import type { DevControlDescription } from "../../src/dev/control/protocol";
 import type { DevInstance } from "./discovery";
 import { ControlError, withinTimeout } from "./errors";
+import { readPageDescription } from "./page-description";
 
 export function matchesIdentity(
   instance: DevInstance,
@@ -49,33 +50,7 @@ export class DevConnection {
       )
         return null;
       const description = await withinTimeout(
-        page.evaluate(async () => {
-          const bridge = window.__AIO_DEV_CONTROL__;
-          if (bridge) return { ...bridge.describe(), bridgeAvailable: true };
-          // Native identity remains available when frontend imports or initialization fail.
-          const internals = (
-            window as unknown as {
-              __TAURI_INTERNALS__?: {
-                invoke: (
-                  command: string
-                ) => Promise<
-                  | import("../../src/dev/control/protocol").DevControlIdentity
-                  | null
-                >;
-              };
-            }
-          ).__TAURI_INTERNALS__;
-          if (!internals) return null;
-          const identity = await internals.invoke("dev_control_identity");
-          return identity
-            ? {
-                ...identity,
-                route: location.pathname + location.search,
-                ready: false,
-                bridgeAvailable: false,
-              }
-            : null;
-        }),
+        page.evaluate(readPageDescription),
         1500
       );
       if (!description) return null;

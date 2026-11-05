@@ -86,9 +86,12 @@ export function serializeCommandLine(args: string[]): string {
     .join(" ");
 }
 
-/**
- * 将单个 argv 转为 PowerShell 单引号字面量，内部 `'` 通过双写转义。
- */
+/** POSIX Shell 单引号字面量；单引号通过结束引用、转义、重新引用保留。 */
+export function quotePosixArg(arg: string): string {
+  return `'${arg.replace(/'/g, "'\\''")}'`;
+}
+
+/** 将单个 argv 转为 PowerShell 单引号字面量，内部单引号通过双写转义。 */
 export function quotePowerShellArg(arg: string): string {
   return `'${arg.replace(/'/g, "''")}'`;
 }

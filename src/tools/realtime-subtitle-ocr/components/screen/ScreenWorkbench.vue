@@ -16,6 +16,14 @@
 
 <template>
   <div class="screen-workbench">
+    <el-alert
+      v-if="!isSupported"
+      type="info"
+      :closable="false"
+      show-icon
+      title="屏幕监控需要 Windows。可切换到「本地视频」处理视频字幕。"
+      style="flex-shrink: 0; margin-bottom: 12px"
+    />
     <!-- 上方：左侧监视与滤镜区，右侧 OCR 配置区 -->
     <div
       class="screen-workbench__top"
@@ -25,6 +33,7 @@
       <div class="preview-panel preview-panel--screen">
         <LivePreview
           class="preview-panel__live"
+          :is-supported="isSupported"
           :last-raw-frame-url="lastRawFrameUrl"
           :last-frame-url="lastFrameUrl"
           :latency="latency"
@@ -76,6 +85,7 @@
 </template>
 
 <script setup lang="ts">
+import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { Settings as SettingsIcon } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
@@ -87,6 +97,8 @@ import ResizeHandle from "../common/ResizeHandle.vue";
 import { useScreenMonitor } from "../../composables/useScreenMonitor";
 import { useMonitorBox } from "../../composables/useMonitorBox";
 import { useSubtitleActions } from "../../composables/useSubtitleActions";
+
+const isSupported = getNativeDesktopCapabilities().screenCapture;
 
 // ===== 上方区域高度拖拽调整 =====
 /** 上方区域默认高度，双击拖拽条可复原到该值。 */
@@ -147,6 +159,7 @@ async function toggleMonitor() {
 }
 
 onMounted(() => {
+  if (!isSupported) return;
   // 监控框几何信息由 useScreenMonitor 通过窗口同步总线接收。
   // 同时后台执行当前 OCR 引擎的健康检查/预热，确保用户直接开始识别时
   // 不会把首次运行时握手和模型检查堆积到实时帧队列中。

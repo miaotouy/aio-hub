@@ -23,6 +23,10 @@ import {
   type TokenCalculationResult,
 } from "./composables/useTokenCalculator";
 import { calculatorProxy } from "./worker/calculator.proxy";
+import {
+  createTextTokenScope,
+  type TextTokenCalculator,
+} from "./core/tokenCalculationScope";
 import type { AssetMetadata, AssetType } from "@/types/asset-management";
 import { markRaw } from "vue";
 import { TokenCalculatorIcon } from "@aiohub/tool-icons";
@@ -84,6 +88,39 @@ class TokenCalculatorRegistry implements ToolRegistry {
       modelId,
       model?.tokenizerProfileId
     );
+  }
+
+  /** Bounded text reuse owned by one context build; media costs remain request-specific. */
+  createScope(): Pick<
+    TokenCalculatorRegistry,
+    "calculateTokens" | "calculateMessageTokens"
+  > {
+    const calculateTokens = createTextTokenScope(
+      (text, modelId, tokenizer) =>
+        calculatorProxy.calculateTokens(text, modelId, tokenizer),
+      (modelId) => {
+        this.touchStore();
+        const { profiles } = useLlmProfiles();
+        const model = profiles.value
+          .flatMap((profile) => profile.models || [])
+          .find((item) => item.id === modelId);
+        return {
+          revision: calculatorProxy.getRegistryRevision(),
+          tokenizerProfileId: model?.tokenizerProfileId,
+        };
+      }
+    );
+    return {
+      calculateTokens,
+      calculateMessageTokens: (text, modelId, attachments, options) =>
+        this.calculateMessageTokensUsing(
+          text,
+          modelId,
+          attachments,
+          options,
+          calculateTokens
+        ),
+    };
   }
 
   /**
@@ -157,9 +194,24 @@ class TokenCalculatorRegistry implements ToolRegistry {
     attachments?: Array<{ type: AssetType; metadata?: AssetMetadata }>,
     options?: { maxImageDimension?: number }
   ): Promise<TokenCalculationResult> {
-    this.touchStore();
-    // 1. 计算文本 Token (通过 Worker 代理)
-    const textResult = await calculatorProxy.calculateTokens(text, modelId);
+    return this.calculateMessageTokensUsing(
+      text,
+      modelId,
+      attachments,
+      options,
+      this.calculateTokens.bind(this)
+    );
+  }
+
+  private async calculateMessageTokensUsing(
+    text: string,
+    modelId: string,
+    attachments:
+      Array<{ type: AssetType; metadata?: AssetMetadata }> | undefined,
+    options: { maxImageDimension?: number } | undefined,
+    calculateText: TextTokenCalculator
+  ): Promise<TokenCalculationResult> {
+    const textResult = await calculateText(text, modelId);
     let totalTokens = textResult.count;
     const textTokenCount = textResult.count;
     let mediaTokenCount = 0;

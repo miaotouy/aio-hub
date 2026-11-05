@@ -4,6 +4,7 @@
 import type { App, Component, Ref } from "vue";
 import type {
   AstNode,
+  LlmThinkRule,
   StreamSource,
 } from "../../src/tools/rich-text-renderer/types";
 
@@ -87,6 +88,21 @@ export async function installTauriMemoryPage(
       "Expected the actual compiled RichTextRenderer component export"
     );
   const Renderer = candidates[0] as Component;
+  // Read the compiled component defaults so the reference parse uses the same rules.
+  const rendererProps = (
+    Renderer as unknown as {
+      props: {
+        llmThinkRules: { default: () => LlmThinkRule[] };
+        defaultToolCallCollapsed: { default: boolean };
+        vcpFuzzyModeEnabled: { default: boolean };
+      };
+    }
+  ).props;
+  const parserOptions = {
+    llmThinkRules: rendererProps.llmThinkRules.default(),
+    defaultToolCallCollapsed: rendererProps.defaultToolCallCollapsed.default,
+    vcpFuzzyModeEnabled: rendererProps.vcpFuzzyModeEnabled.default,
+  };
   // DevTools caches component events; suppress them for this isolated probe.
   if (hook) hook.emit = () => {};
   const badge = document.createElement("aside");
@@ -356,5 +372,6 @@ export async function installTauriMemoryPage(
     renderer: "v2-custom-parser",
     componentUrl,
     devtoolsPresent: !!hook,
+    parserOptions,
   };
 }

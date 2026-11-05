@@ -232,12 +232,12 @@
             :icon="Copy"
             :disabled="!planState.plan"
             @click="copyCommand"
-            >复制 PowerShell 命令</el-button
+            >复制 {{ shellLabel }} 命令</el-button
           ></template
         >
         <code class="command-preview">{{
           planState.plan
-            ? formatPowerShellCommand(planState.plan)
+            ? formatCommand(planState.plan)
             : "选择序列帧并配置输出后显示命令"
         }}</code>
       </InfoCard>
@@ -279,7 +279,6 @@ import { useFFmpegStore } from "../ffmpegStore";
 import { useFFmpegCore } from "../composables/useFFmpegCore";
 import {
   buildExecutionPlan,
-  formatPowerShellCommand,
   resolveVideoQuality,
 } from "../utils/executionPlan";
 import {
@@ -296,6 +295,9 @@ import {
 } from "../utils/lifecycle";
 import { sanitizeOutputName } from "../utils/naming";
 
+import { useFFmpegCommand } from "../composables/useFFmpegCommand";
+
+const { shellLabel, formatCommand } = useFFmpegCommand();
 const sourceElement = ref<HTMLElement>();
 
 const formatPercent = (percent: number) => `${percent.toFixed(1)}%`;
@@ -698,7 +700,7 @@ async function copyCommand() {
   if (!plan) return;
   await errorHandler.wrapAsync(
     async () => {
-      await writeText(formatPowerShellCommand(plan));
+      await writeText(formatCommand(plan));
       customMessage.success("命令已复制");
     },
     { userMessage: "复制命令失败" }

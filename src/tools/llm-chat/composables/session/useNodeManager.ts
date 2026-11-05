@@ -714,13 +714,13 @@ export function useNodeManager() {
 
       // 只添加启用的节点
       if (node.isEnabled !== false) {
-        path.unshift(node);
+        path.push(node);
       }
 
       currentId = node.parentId;
     }
 
-    return path;
+    return path.reverse();
   };
 
   /**

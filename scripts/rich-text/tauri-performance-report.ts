@@ -52,18 +52,24 @@ export function summarizeTauriPerformance(sample: TauriPerformanceSample) {
     frameGapMs: stats(gaps(frames)),
     commitFrameGapMs: stats(gaps(updateFrames)),
     commitFrameCount: updateFrames.length,
-    longTaskCount: longTasks.length,
-    longTaskTotalMs: longTasks.reduce(
-      (sum, task) =>
-        sum +
-        Math.max(
-          0,
-          Math.min(end, task.startTime + task.duration) -
-            Math.max(start, task.startTime)
-        ),
-      0
-    ),
-    longestTaskMs: Math.max(0, ...longTasks.map((x) => x.duration)),
+    longTaskCount: sample.longTaskSupported === false ? null : longTasks.length,
+    longTaskTotalMs:
+      sample.longTaskSupported === false
+        ? null
+        : longTasks.reduce(
+            (sum, task) =>
+              sum +
+              Math.max(
+                0,
+                Math.min(end, task.startTime + task.duration) -
+                  Math.max(start, task.startTime)
+              ),
+            0
+          ),
+    longestTaskMs:
+      sample.longTaskSupported === false
+        ? null
+        : Math.max(0, ...longTasks.map((x) => x.duration)),
   };
 }
 
@@ -87,6 +93,7 @@ export function renderTauriPerformanceReport(
     "首屏为非空组件提交后的双 rAF 绘制机会；流式计时从首块发送开始，静态计时从挂载开始。",
     "更新等待是每块发送后下一次组件提交至绘制机会的时差；流式合并、节流会让多个 chunk 共用提交，数据只表达调度响应。",
     "完成延迟为结束信号到最终 AST 校验通过后双 rAF 绘制机会的上界，包含单列的校验开销；静态模式以总耗时表示。重型节点内部异步工作与实际像素呈现另行解释。",
+    "引擎缺少的长任务或 CDP 指标记为不可用；界面时序继续采集 rAF 与组件提交。",
     "固定节奏在页内按绝对时间发送，拥塞后的追赶和迟发通过原始时间戳与发送迟延保存。所有数据含可选生命周期计数开销。",
     "",
     "| 输入 | 模式 | 轮次 | 首屏 ms | 更新等待 P95 ms | 帧间隔 P95 / 最大 ms | 完成上界 / 校验 ms | 长任务 数 / 总 ms / 最大 ms | 提交帧 |",
@@ -104,7 +111,7 @@ export function renderTauriPerformanceReport(
           ms(s.nextCommitFrameWaitMs?.p95),
           ms(s.frameGapMs?.p95) + " / " + ms(s.frameGapMs?.max),
           ms(s.completionMs) + " / " + ms(s.validationMs),
-          s.longTaskCount +
+          (s.longTaskCount ?? "—") +
             " / " +
             ms(s.longTaskTotalMs) +
             " / " +

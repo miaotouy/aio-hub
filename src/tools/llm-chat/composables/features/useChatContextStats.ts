@@ -18,8 +18,7 @@
  */
 
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import { ref, watch, type Ref } from "vue";
-import { useDebounceFn } from "@vueuse/core";
+import { onScopeDispose, ref, watch, type Ref } from "vue";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatHandler } from "../chat/useChatHandler";
@@ -39,58 +38,91 @@ export function useChatContextStats(
   const contextStats = ref<ContextPreviewData["statistics"] | null>(null);
   const isLoadingContextStats = ref(false);
 
-  const refreshContextStats = async (reason = "manual") => {
-    // 强制等待一个微任务，确保 Vue 响应式数据和 Store 状态已经同步
-    await new Promise((resolve) => setTimeout(resolve, 0));
+  let generation = 0;
+  let disposed = false;
+  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+  let queuedReason: string | null = null;
+  let running: Promise<void> | null = null;
 
-    const index = currentSessionIndex.value;
-    const detail = currentSessionDetail.value;
-    logger.debug(`[ContextStats] 准备刷新统计, 原因: ${reason}`, {
-      sessionId: index?.id,
-      activeLeafId: detail?.activeLeafId,
-      updatedAt: index?.updatedAt,
-    });
+  const cancelDebounce = () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = undefined;
+  };
 
-    if (!index || !detail || !detail.activeLeafId) {
-      contextStats.value = null;
-      return;
-    }
-
-    const inputManager = useChatInputManager();
-    isLoadingContextStats.value = true;
-
+  const drainRefreshes = async () => {
     try {
-      const { getLlmContextForPreview } = useChatHandler();
-
-      // 考虑临时模型覆盖
-      const temporaryModel = inputManager.temporaryModel.value;
-
-      const previewData = await getLlmContextForPreview(
-        detail,
-        detail.activeLeafId,
-        currentAgentId.value ?? undefined,
-        {
-          purpose: "statistics",
-          pendingInput: temporaryModel
-            ? {
-                text: "", // 不传递实际文本，仅用于传递模型信息
-                temporaryModel,
-              }
-            : undefined,
+      while (queuedReason !== null && !disposed) {
+        // Yield a task so synchronous Store changes settle before taking a snapshot.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (disposed || queuedReason === null) break;
+        const reason = queuedReason;
+        queuedReason = null;
+        const requestGeneration = generation;
+        const index = currentSessionIndex.value;
+        const detail = currentSessionDetail.value;
+        const leafId = detail?.activeLeafId;
+        logger.debug("[ContextStats] 刷新统计", {
+          reason,
+          sessionId: index?.id,
+          leafId,
+        });
+        if (!index || !detail || !leafId) {
+          contextStats.value = null;
+          continue;
         }
-      );
-
-      if (previewData) {
-        contextStats.value = previewData.statistics;
+        try {
+          const { temporaryModel } = useChatInputManager();
+          const { getLlmContextForPreview } = useChatHandler();
+          const previewData = await getLlmContextForPreview(
+            detail,
+            leafId,
+            currentAgentId.value ?? undefined,
+            {
+              purpose: "statistics",
+              pendingInput: temporaryModel.value
+                ? { text: "", temporaryModel: temporaryModel.value }
+                : undefined,
+            }
+          );
+          if (!disposed && requestGeneration === generation) {
+            contextStats.value = previewData?.statistics ?? null;
+          }
+        } catch (error) {
+          if (!disposed && requestGeneration === generation) {
+            logger.warn("获取上下文统计失败", error);
+          }
+        }
       }
-    } catch (error) {
-      logger.warn("获取上下文统计失败", error);
     } finally {
-      isLoadingContextStats.value = false;
+      running = null;
+      if (!disposed) isLoadingContextStats.value = false;
     }
   };
 
-  const debouncedRefreshContextStats = useDebounceFn(refreshContextStats, 500);
+  const refreshContextStats = (reason = "manual"): Promise<void> => {
+    cancelDebounce();
+    if (disposed) return Promise.resolve();
+    generation++;
+    queuedReason = reason;
+    isLoadingContextStats.value = true;
+    running ??= drainRefreshes();
+    return running;
+  };
+
+  const debouncedRefreshContextStats = () => {
+    cancelDebounce();
+    debounceTimer = setTimeout(() => {
+      void refreshContextStats("debounced");
+    }, 500);
+  };
+
+  onScopeDispose(() => {
+    disposed = true;
+    generation++;
+    cancelDebounce();
+    queuedReason = null;
+    isLoadingContextStats.value = false;
+  });
 
   // 监听核心状态变化
   watch(
@@ -123,9 +155,12 @@ export function useChatContextStats(
       },
     ],
     (newValues, oldValues) => {
+      generation++; // Invalidate immediately, including the debounce waiting period.
       const [newSessionId, newLeafId, newUpdatedAt, isSending] = newValues;
       const [oldSessionId, oldLeafId, oldUpdatedAt, oldIsSending] =
         oldValues || [];
+
+      if (newSessionId !== oldSessionId) contextStats.value = null;
 
       logger.debug(`[ContextStats] Watch 触发`, {
         isSending,
@@ -165,7 +200,7 @@ export function useChatContextStats(
       logger.debug(`[ContextStats] 非发送状态变化，防抖刷新`);
       debouncedRefreshContextStats();
     },
-    { deep: true, immediate: true }
+    { deep: true, immediate: true, flush: "sync" }
   );
 
   return {

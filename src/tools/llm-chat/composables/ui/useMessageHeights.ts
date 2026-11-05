@@ -437,6 +437,7 @@ export function useMessageHeights(options: Options) {
           !slot ||
           environmentDirty ||
           isLive(slot) ||
+          slot.element.querySelector("[data-render-pending]") ||
           options.screenshotMode() ||
           (!isEager(slot) && slot.skipped !== false)
         )
@@ -479,7 +480,7 @@ export function useMessageHeights(options: Options) {
       childList: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ["open"],
+      attributeFilter: ["open", "data-render-pending"],
     });
     refreshAll();
   }

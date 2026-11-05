@@ -16,14 +16,26 @@ export interface DevInstance {
   instanceId: string;
   startupId: string;
   launcherPid: number;
+  launcherStartTicks?: string;
   appPid?: number;
   startedAt: string;
   endpoint: string;
   frontendUrl: string;
-  frontendMode: "hmr" | "static";
+  transport?: "cdp" | "embedded-webdriver";
+  frontendMode: "hmr" | "static" | "bundled-debug";
   dataDir: string;
   status: "starting" | "ready" | "failed";
   error?: string;
+}
+
+export function linuxProcessStartTicks(pid: number): string | undefined {
+  if (process.platform !== "linux") return undefined;
+  try {
+    const stat = fs.readFileSync("/proc/" + pid + "/stat", "utf8");
+    return stat.slice(stat.lastIndexOf(")") + 2).split(/\s+/)[19];
+  } catch {
+    return undefined;
+  }
 }
 
 export function processAlive(pid: number): boolean {
@@ -68,9 +80,20 @@ export function validateInstance(value: unknown): DevInstance {
     throw new ControlError("INVALID_INSTANCE", "控制端口无效。");
   if (
     typeof data.frontendUrl !== "string" ||
-    !/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(data.frontendUrl)
+    !(
+      /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(data.frontendUrl) ||
+      (data.frontendMode === "bundled-debug" &&
+        data.frontendUrl === "tauri://localhost")
+    )
   )
     throw new ControlError("INVALID_INSTANCE", "前端地址无效。");
+  if (
+    data.transport !== undefined &&
+    !["cdp", "embedded-webdriver"].includes(data.transport)
+  )
+    throw new ControlError("INVALID_INSTANCE", "未知控制传输类型。");
+  if (!["hmr", "static", "bundled-debug"].includes(data.frontendMode ?? ""))
+    throw new ControlError("INVALID_INSTANCE", "未知前端运行模式。");
   return data as DevInstance;
 }
 export function listInstances(): DevInstance[] {
@@ -84,7 +107,12 @@ export function listInstances(): DevInstance[] {
         const item = validateInstance(
           JSON.parse(fs.readFileSync(path.join(dir, name), "utf8"))
         );
-        return processAlive(item.launcherPid) ? [item] : [];
+        return processAlive(item.launcherPid) &&
+          (!item.launcherStartTicks ||
+            item.launcherStartTicks ===
+              linuxProcessStartTicks(item.launcherPid))
+          ? [item]
+          : [];
       } catch {
         return [];
       }

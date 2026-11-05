@@ -1,7 +1,7 @@
 {
   "name": "aiohub",
   "private": true,
-  "version": "0.7.0-r.2",
+  "version": "0.7.1-alpha.1",
   "packageManager": "bun@1.3.11",
   "type": "module",
   "license": "Apache-2.0",
@@ -120,8 +120,17 @@
     "security:dependencies:strict": "bun scripts/security/scan-dependencies.ts --mode installed --fail-on medium",
     "security:audit": "bun audit --audit-level high",
     "check:security": "bun run security:dependencies",
-    "check:dev-ui": "tsc --noEmit --strict --module esnext --moduleResolution bundler --target es2022 --types node,bun --skipLibCheck scripts/dev-control/cli.ts scripts/dev-control/launch.ts",
-    "test:dev-ui": "vitest --run --config scripts/dev-control/vitest.config.ts"
+    "check:dev-ui": "tsc --noEmit --strict --module esnext --moduleResolution bundler --target es2022 --types node,bun --skipLibCheck scripts/dev-control/cli.ts scripts/dev-control/launch.ts scripts/dev-control/runtime.ts scripts/ubuntu-vm.ts",
+    "test:dev-ui": "vitest --run --config scripts/dev-control/vitest.config.ts",
+    "dev:control": "bun scripts/dev-control/runtime.ts",
+    "dev:vm": "bun scripts/ubuntu-vm.ts",
+    "perf:context:tauri": "bun scripts/perf/context-pipeline/run.ts",
+    "rich-text:screenshot:tauri": "bun scripts/rich-text/run-iframe-screenshot.ts",
+    "perf:context:check": "vue-tsc --noEmit --project scripts/perf/context-pipeline/tsconfig.json",
+    "chat:pipeline:tauri": "bun scripts/rich-text/run-message-pipeline.ts",
+    "perf:context:cold": "bun scripts/perf/context-pipeline/cold-tokenizer.ts",
+    "rich-text:embedded:tauri": "bun scripts/rich-text/run-embedded-preview.ts",
+    "rich-text:chat-preview:tauri": "bun scripts/rich-text/run-chat-preview.ts"
   },
   "dependencies": {
     "@aiohub/agent-preset-core": "workspace:*",

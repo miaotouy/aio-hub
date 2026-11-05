@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { executeRequest } from "./commands";
-import { DevConnection } from "./connection";
+import { connectSession } from "./session";
 import { getInstance, listInstances } from "./discovery";
 import { ControlError, errorResult } from "./errors";
 import {
@@ -32,6 +32,8 @@ scroll [定位参数] --delta-y 600    滚动
 wait [定位参数 | --route /path]    等待控件、路由或应用就绪
 state ui                          读取开发状态；capabilities 查看可用适配器
 action <名称> [--args-file <JSON>] 执行已注册应用动作
+resize --width 960 --height 720    调整窗口并核对实际视口
+diagnostics [--since 0]            读取启动期新增异常与 CSP 摘要
 eval --expression <JS>            显式页面脚本求值
 batch --stdin | --file <JSON>      连续执行 JSON steps，失败即停止
 
@@ -86,6 +88,10 @@ export async function main(
       state: { type: "string" },
       "args-file": { type: "string" },
       expression: { type: "string" },
+      width: { type: "string" },
+      height: { type: "string" },
+      since: { type: "string" },
+      "document-id": { type: "string" },
       file: { type: "string" },
       stdin: { type: "boolean" },
     },
@@ -104,6 +110,8 @@ export async function main(
   const allowedOptions: Record<string, string[]> = {
     instances: [],
     windows: [],
+    resize: ["width", "height"],
+    diagnostics: ["since", "limit", "document-id"],
     navigate: [],
     inspect: [...targeting, "limit"],
     observe: [...targeting, "limit", "no-screenshot"],
@@ -169,7 +177,7 @@ export async function main(
     };
   if (command === "windows") {
     const instance = getInstance(values.instance);
-    const connection = await DevConnection.attach(
+    const connection = await connectSession(
       instance,
       Number(values.timeout ?? 15000)
     );
@@ -178,7 +186,7 @@ export async function main(
         ok: true,
         instance: instance.instanceId,
         windows: (await connection.windows()).map(
-          ({ description: { windowLabel, route, ready } }) => ({
+          ({ windowLabel, route, ready }) => ({
             windowLabel,
             route,
             ready,
@@ -275,6 +283,16 @@ export async function main(
     step.name = argument;
     if (values["args-file"])
       step.args = JSON.parse(await fs.readFile(values["args-file"], "utf8"));
+  }
+  if (command === "resize") {
+    step.width = Number(values.width);
+    step.height = Number(values.height);
+  }
+  if (command === "diagnostics") {
+    if (values.since !== undefined) step.since = Number(values.since);
+    if (values["document-id"] !== undefined)
+      step.documentId = values["document-id"];
+    if (values.limit !== undefined) step.limit = Number(values.limit);
   }
   if (command === "eval") step.expression = values.expression ?? argument;
   return executeRequest({

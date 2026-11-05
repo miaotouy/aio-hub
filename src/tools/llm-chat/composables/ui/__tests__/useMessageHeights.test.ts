@@ -88,6 +88,7 @@ describe("消息占位与实际高度切换", () => {
       content: "**复杂富文本**",
     });
     const displayMounted = ref(true);
+    const layoutPending = ref(false);
     const nearby = ref(true);
     const screenshotMode = ref(false);
     const host = document.createElement("div");
@@ -129,7 +130,15 @@ describe("消息占位与实际高度切换", () => {
               withDirectives(
                 h("div", { class: "message-slot" }, [
                   displayMounted.value
-                    ? h("article", message.value.content)
+                    ? h(
+                        "article",
+                        {
+                          "data-render-pending": layoutPending.value
+                            ? ""
+                            : undefined,
+                        },
+                        message.value.content
+                      )
                     : null,
                 ]),
                 [[vMessageSize, { message: message.value, eager: false }]]
@@ -158,6 +167,18 @@ describe("消息占位与实际高度切换", () => {
       deliver(container, 600, 500);
       await flush();
       visibility(false);
+      deliver(slot, 600, 499.625);
+      await flush();
+      expect(height()).toBe(499.625);
+
+      // In-flight layout can report a short loading shell; keep the previous measured geometry.
+      layoutPending.value = true;
+      await flush();
+      deliver(slot, 600, 48);
+      await flush();
+      expect(height()).toBe(499.625);
+      layoutPending.value = false;
+      await flush();
       deliver(slot, 600, 499.625);
       await flush();
       expect(height()).toBe(499.625);

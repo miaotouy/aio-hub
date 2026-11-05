@@ -157,10 +157,11 @@ async function point(gc = false) {
     workers: page.workers().map((x) => x.url()),
   };
 }
+let referenceParser = new CustomParser();
 async function waitMatch(text: string) {
   const expected = signature(
     astValue(
-      new CustomParser().parse(text.endsWith("\n") ? text : text + "\n"),
+      referenceParser.parse(text.endsWith("\n") ? text : text + "\n"),
       true
     )
   );
@@ -216,7 +217,14 @@ const report: Record<string, unknown> = {
   errors,
 };
 try {
-  report.probe = await page.evaluate(installTauriMemoryPage, componentUrl);
+  const probe = await page.evaluate(installTauriMemoryPage, componentUrl);
+  report.probe = probe;
+  referenceParser = new CustomParser(
+    new Set(probe.parserOptions.llmThinkRules.map((rule) => rule.tagName)),
+    probe.parserOptions.llmThinkRules,
+    probe.parserOptions.defaultToolCallCollapsed,
+    probe.parserOptions.vcpFuzzyModeEnabled
+  );
   await page.evaluate(() => window.__RICH_TEXT_MEMORY__!.mount("props"));
   let small = "## Memory lifecycle\n\nA **bold** line.\nNext line\n";
   await page.evaluate((text) => window.__RICH_TEXT_MEMORY__!.push(text), small);

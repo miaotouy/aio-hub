@@ -23,75 +23,112 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import {
+  computed,
+  inject,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import katex from "katex";
+import { useRendererLayoutTask } from "../composables/useRendererLayoutState";
 import "katex/dist/katex.min.css";
-import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import {
+  RICH_TEXT_CONTEXT_KEY,
+  type NodeMeta,
+  type RichTextContext,
+} from "../types";
 
-const logger = createModuleLogger("rich-text-renderer/KatexRenderer");
 const errorHandler = createModuleErrorHandler(
   "rich-text-renderer/KatexRenderer"
 );
-
-interface Props {
-  content: string;
-  displayMode?: boolean; // true 为块级公式，false 为行内公式
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  displayMode: false,
-});
-
+const props = withDefaults(
+  defineProps<{
+    content: string;
+    nodeId?: string;
+    displayMode?: boolean;
+    nodeStatus?: NodeMeta["status"];
+  }>(),
+  { displayMode: false }
+);
+const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
 const containerRef = ref<HTMLElement>();
-
-const containerClass = props.displayMode
-  ? "katex-block-container"
-  : "katex-inline-container";
-
-/**
- * 渲染 KaTeX 公式
- */
-const renderKatex = () => {
-  if (!containerRef.value) {
-    logger.warn("容器元素未准备好", { content: props.content });
+const containerClass = computed(() =>
+  props.displayMode ? "katex-block-container" : "katex-inline-container"
+);
+const streaming = computed(
+  () =>
+    (context?.isStreaming?.value ?? true) &&
+    (props.nodeStatus === undefined
+      ? !!context?.isStreaming?.value
+      : props.nodeStatus === "pending")
+);
+const layoutTask = useRendererLayoutTask(() => props.nodeId);
+let active = true;
+let mounted = false;
+let timer: ReturnType<typeof setTimeout> | undefined;
+let rendered: { content: string; displayMode: boolean } | undefined;
+function cancel() {
+  if (timer !== undefined) clearTimeout(timer);
+  timer = undefined;
+  layoutTask.cancel();
+}
+function renderKatex() {
+  cancel();
+  if (!mounted || !active || !containerRef.value) return;
+  if (
+    rendered?.content === props.content &&
+    rendered.displayMode === props.displayMode
+  )
     return;
-  }
-
   try {
     katex.render(props.content, containerRef.value, {
       displayMode: props.displayMode,
-      throwOnError: false, // 出错时显示错误信息而不是抛出异常
+      throwOnError: false,
       errorColor: "#cc0000",
-      strict: "warn", // 对不严格的 LaTeX 语法发出警告而不是错误
-      trust: false, // 不信任 HTML 和 JavaScript，保证安全性
-      macros: {}, // 可以在这里定义自定义宏
+      strict: "warn",
+      trust: false,
+      macros: {},
     });
-
-    // logger.debug('KaTeX 公式渲染成功', {
-    //   content: props.content,
-    //   displayMode: props.displayMode
-    // });
+    rendered = { content: props.content, displayMode: props.displayMode };
   } catch (error) {
     errorHandler.error(error, "KaTeX 公式渲染失败", {
       content: props.content,
       displayMode: props.displayMode,
     });
   }
-};
-
-// 挂载时渲染
+}
+function schedule() {
+  if (!mounted || !active) return;
+  if (!streaming.value) renderKatex();
+  else if (timer === undefined) {
+    layoutTask.begin();
+    timer = setTimeout(renderKatex, 32);
+  }
+}
 onMounted(() => {
+  mounted = true;
   renderKatex();
 });
-
-// 监听内容变化重新渲染
-watch(
-  () => props.content,
-  () => {
-    renderKatex();
-  }
-);
+watch([() => props.content, () => props.displayMode, streaming], schedule, {
+  flush: "post",
+});
+onDeactivated(() => {
+  active = false;
+  cancel();
+});
+onActivated(() => {
+  active = true;
+  renderKatex();
+});
+onBeforeUnmount(() => {
+  mounted = false;
+  cancel();
+});
 </script>
 
 <style scoped>

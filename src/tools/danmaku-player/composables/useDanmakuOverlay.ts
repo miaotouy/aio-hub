@@ -14,6 +14,7 @@
 
 import { ref, onBeforeUnmount } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
 import { emit as tauriEmit } from "@tauri-apps/api/event";
 import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -45,6 +46,7 @@ interface LogicalOverlayRect {
 }
 
 export function useDanmakuOverlay() {
+  const isSupported = getNativeDesktopCapabilities().externalPlayerOverlay;
   const overlayLabel = ref<string | null>(null);
   const overlayActive = ref(false);
 
@@ -142,6 +144,7 @@ export function useDanmakuOverlay() {
   }
 
   async function createOverlay(targetHwnd: number): Promise<string | null> {
+    if (!isSupported) return null;
     try {
       const label = await invoke<string>("create_danmaku_overlay_window", {
         targetHwnd,

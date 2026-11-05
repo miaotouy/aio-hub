@@ -20,12 +20,12 @@
  */
 import {
   ref,
-  onUnmounted,
   type Ref,
   isRef,
   watch,
   nextTick,
-  getCurrentInstance,
+  getCurrentScope,
+  onScopeDispose,
 } from "vue";
 import { useWindowSyncBus } from "./useWindowSyncBus";
 import {
@@ -258,6 +258,7 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     }
 
     const payload = await getStatePayload(isFullSync);
+    if (!isInitialized) return;
     if (!payload) {
       if (!silent) logger.debug("状态无变化，跳过同步", { stateKey });
       return;
@@ -279,6 +280,7 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
       targetWindowLabel
     );
 
+    if (!isInitialized) return;
     stateVersion.value = payload.version;
     lastSyncedValue = safeDeepClone(state.value);
   };
@@ -370,8 +372,12 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     (bus.windowType === "main" || bus.windowType === "detached-tool")
   ) {
     stopWatching = watch(
-      state,
+      () => (config.autoPushEnabled?.() === false ? null : state.value),
       (newVal) => {
+        if (config.autoPushEnabled?.() === false) {
+          debouncedPushState.cancel();
+          return;
+        }
         if (isApplyingExternalState) return;
 
         // 针对会话相关的关键 Key 添加诊断日志
@@ -453,6 +459,8 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   const cleanup = () => {
     if (isCleaned) return;
     isCleaned = true;
+    isInitialized = false;
+    debouncedPushState.cancel();
 
     stopWatching?.();
     unlistenStateSync?.();
@@ -461,8 +469,8 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   };
 
   // 仅在有活跃组件实例时自动注册清理
-  if (getCurrentInstance()) {
-    onUnmounted(cleanup);
+  if (getCurrentScope()) {
+    onScopeDispose(cleanup);
   }
 
   return {

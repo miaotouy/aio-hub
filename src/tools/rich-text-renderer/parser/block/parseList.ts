@@ -16,13 +16,27 @@ import { Token, ParserContext } from "../types";
 import { AstNode } from "../../types";
 import { isBlockStart } from "../utils/block-utils";
 
+export interface ListItemSnapshot {
+  from: number;
+  to: number;
+  readTo: number;
+  node: AstNode;
+}
+
+export interface ListItemCache {
+  common: number;
+  previous?: ListItemSnapshot[];
+  current: ListItemSnapshot[];
+}
+
 /**
  * 解析列表
  */
 export function parseList(
   ctx: ParserContext,
   tokens: Token[],
-  start: number
+  start: number,
+  cache?: ListItemCache
 ): { node: AstNode | null; nextIndex: number } {
   const firstMarker = tokens[start];
   if (firstMarker.type !== "list_marker") {
@@ -42,15 +56,31 @@ export function parseList(
       marker.ordered !== ordered
     )
       break;
+    const previous = cache?.previous?.[items.length];
+    if (
+      cache &&
+      previous &&
+      previous.from === i &&
+      previous.readTo <= cache.common
+    ) {
+      items.push(previous.node);
+      cache.current.push(previous);
+      i = previous.to;
+      continue;
+    }
+    const from = i;
+    let readTo = i + 1;
     const contentIndent = baseIndent + marker.raw.length;
     const itemTokens: Token[] = [];
     i++;
     let lineIndent = contentIndent;
     let startsLine = false;
     while (i < tokens.length) {
+      readTo = Math.max(readTo, i + 1);
       const token = tokens[i];
       if (token.type === "list_marker" && token.indent <= baseIndent) break;
       if (token.type === "newline") {
+        readTo = Math.max(readTo, i + 2);
         const next = tokens[i + 1];
         const nextIndent =
           token.nextIndent ??
@@ -89,13 +119,15 @@ export function parseList(
       startsLine = false;
       i++;
     }
-    items.push({
+    const node: AstNode = {
       id: "",
       type: "list_item",
       props: {},
       children: ctx.parseBlocks(itemTokens),
       meta: { range: { start: 0, end: 0 }, status: "stable" },
-    });
+    };
+    items.push(node);
+    cache?.current.push({ from, to: i, readTo: Math.max(i + 1, readTo), node });
   }
   return {
     node: {

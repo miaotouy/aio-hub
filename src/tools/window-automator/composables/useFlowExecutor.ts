@@ -31,6 +31,7 @@
  * 纯工具函数（坐标转换、颜色解析等）见 ./flowUtils.ts。
  */
 
+import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
 import { computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -111,6 +112,14 @@ export function useFlowExecutor() {
   }
 
   async function start(flow: ActionFlow, boundWindow: WindowInfo | null) {
+    if (!getNativeDesktopCapabilities().windowAutomation) {
+      store.appendLog(
+        "warn",
+        null,
+        "方案执行需要 Windows，当前可编辑和导出方案"
+      );
+      return;
+    }
     if (
       store.runtime.status === "running" ||
       store.runtime.status === "paused"

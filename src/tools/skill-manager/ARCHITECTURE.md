@@ -45,6 +45,7 @@
 ### 2.0. 双栏自说明展示 (UI 交互改进 F-01)
 
 管理界面采用左右双栏结构，彻底解决此前技能概览空洞、说明淹没在指令中的问题：
+
 - **左栏（`SkillListPanel`）**：高效浏览已安装技能，提供启用状态切换与快速状态指示。
 - **右栏（`SkillDetailPanel`）**：自说明信息展示中心，将技能元数据、详细描述、SKILL.md 核心说明结构化分块呈现；同时**突出展示技能暴露的可用脚本与所需执行权限**，使安全审计一目了然；优化滚动流并解决嵌套滚动冲突。
 
@@ -195,3 +196,7 @@ src/tools/skill-manager/
 - **Rust Backend**：提供扫描、读写、执行、安装、卸载、重命名等 13 个 Tauri 命令。
 - **错误处理**: `SkillInstallDialog` 的识别失败和安装失败统一通过 `createModuleErrorHandler("skill-manager/install-dialog")` 处理，不在组件内直接拼接异常文本调用全局提示；保持模块日志、错误上下文和用户提示的一致性。
 - **测试约束**: Agent 接口的核心暴露路径必须由测试保护；扩展 Skill 包解析或安装流程时，应同时覆盖解析失败、安装失败和 Agent 调用边界。
+
+## 宿主终端与运行时
+
+`auto-detect` 终端偏好按宿主平台解析为 Windows PowerShell、Linux Bash、macOS Zsh，显式终端和命令串联偏好优先。上下文中的运行时命令表示配置与探测候选，实际脚本启动由 Rust 解析：Python 在 Unix 优先 `python3`，Windows 优先 `python`；PowerShell 在 Unix 优先 `pwsh`，Windows 优先 `powershell`。空配置按候选的可用性选择；显式可执行文件路径保持优先。

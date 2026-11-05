@@ -161,12 +161,12 @@ export const assetManagerEngine = {
         return "";
       }
 
-      // 标准化路径分隔符为反斜杠（Windows）
-      const normalizedBase = basePath.replace(/\//g, "\\");
-      const normalizedRelative = relativePath.replace(/\//g, "\\");
-
-      // 拼接完整路径
-      const fullPath = `${normalizedBase}\\${normalizedRelative}`;
+      // 正斜杠兼容 POSIX、Windows 盘符和 UNC，保留根目录的前导分隔符。
+      const normalizedBase = basePath.replace(/\\/g, "/").replace(/\/+$/, "");
+      const normalizedRelative = relativePath
+        .replace(/\\/g, "/")
+        .replace(/^\/+/, "");
+      const fullPath = `${normalizedBase}/${normalizedRelative}`;
 
       // 使用 Tauri v2 的 convertFileSrc
       return convertFileSrc(fullPath, "asset");

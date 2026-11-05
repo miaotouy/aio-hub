@@ -1,9 +1,9 @@
 # 窗口自动化助手（Window Automator）：架构与设计规范
 
-> 状态：Active | 最后更新：2026-10-18
+> 状态：Active | 最后更新：2026-10-29
 > 关联模块：`src/tools/window-automator`、`src-tauri/src/commands/window_automator.rs`、`src/tools/smart-ocr`（OCR 引擎复用）
 > 参考方案：[`center-coordinate-system-plan.md`](./docs/Plan/center-coordinate-system-plan.md)（中心坐标系与四象限点位，代码已实施；真实 Tauri 运行态验证待人工执行）
-> 平台边界：前端逻辑跨平台，但全部输入注入与截图/取色能力依赖 Windows Rust command（`#[cfg(windows)]` 守卫）
+> 平台边界：全部输入注入与截图/取色能力依赖 Windows Rust command（`#[cfg(windows)]` 守卫）。前端通过 `getNativeDesktopCapabilities()` 判定能力：Linux/macOS 保留方案创建、编辑与导入导出，并在工作区说明支持范围；窗口选择/刷新禁用，绑定查询和执行入口在发出 IPC 前返回。
 
 ---
 

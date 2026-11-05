@@ -17,6 +17,8 @@ mod backend_logging;
 mod commands;
 mod events;
 mod frontend_monitor;
+#[cfg(desktop)]
+mod filesystem_scope;
 mod knowledge;
 mod recall;
 mod tray;
@@ -232,9 +234,20 @@ pub fn run() {
         .manage(commands::system_pulse::PulseState::default())
         .manage(SidecarPluginManager::default())
         .manage(frontend_monitor::FrontendMonitorState::default())
-        .on_page_load(frontend_monitor::record_page_load);
+        .on_page_load(|webview, payload| {
+            #[cfg(target_os = "linux")]
+            if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+                if let Some(state) = webview.try_state::<commands::media_stream::MediaStreamState>() {
+                    state.release_window(webview.label());
+                }
+            }
+            frontend_monitor::record_page_load(webview, payload);
+        });
 
     // 注册命令处理器
+    #[cfg(target_os = "linux")]
+    let builder = builder.manage(commands::media_stream::MediaStreamState::default());
+
     let builder = commands::register_commands(builder);
 
     let run_result = builder
@@ -259,8 +272,13 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 use tauri_plugin_fs::FsExt;
-                let _ = app.fs_scope().allow_directory(&app_data_dir, true);
+                app.fs_scope().allow_directory(&app_data_dir, true)?;
+                filesystem_scope::authorize_app_data(app.handle(), &app_data_dir)?;
                 log::info!("[SCOPE] 已允许访问数据目录 (fs): {:?}", app_data_dir);
+                // Asset requests have a separate scope; isolated data roots may contain dot directories.
+                app.asset_protocol_scope()
+                    .allow_directory(&app_data_dir, true)?;
+                log::info!("[SCOPE] 已允许访问数据目录 (asset): {:?}", app_data_dir);
             }
 
             // Recall repository 和内存读模型属于应用后端生命周期，不依赖任何前端页面挂载。
@@ -368,7 +386,7 @@ pub fn run() {
                 win_builder = win_builder.decorations(false).transparent(true);
             }
 
-            let main_window = win_builder.build()?;
+            let main_window = commands::dev_control::configure_webview(win_builder).build()?;
 
             #[cfg(desktop)]
             if let Err(error) = commands::background_runtime::create_background_runtime_window(app.app_handle()) {
@@ -439,9 +457,7 @@ pub fn run() {
                                         + '<p style="color:#ccc;max-width:500px;line-height:1.6;">AIO Hub 的前端界面未能在预期时间内加载完成。这通常是由于 WebKitGTK 兼容性问题导致的。</p>'
                                         + '<div style="background:#1a1a2e;border-radius:8px;padding:16px;margin:20px 0;text-align:left;max-width:500px;width:100%;">'
                                         + '<p style="color:#909399;font-size:12px;margin:0 0 8px;">建议尝试：</p>'
-                                        + '<code style="color:#67c23a;font-size:13px;display:block;margin:4px 0;">WEBKIT_DISABLE_DMABUF_RENDERER=1 ./aio-hub</code>'
-                                        + '<code style="color:#67c23a;font-size:13px;display:block;margin:4px 0;">WEBKIT_DISABLE_COMPOSITING_MODE=1 ./aio-hub</code>'
-                                        + '<code style="color:#67c23a;font-size:13px;display:block;margin:4px 0;">./aio-hub --diagnose</code>'
+                                        + '<code style="color:#67c23a;font-size:13px;display:block;margin:4px 0;">./aiohub --diagnose</code>'
                                         + '</div>'
                                         + '<p style="color:#909399;font-size:12px;">如需帮助，请运行 <code style="color:#409eff;">--diagnose</code> 并将输出附在 GitHub Issue 中</p>'
                                         + '<button onclick="this.parentElement.remove()" style="margin-top:16px;background:#409eff;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:14px;">关闭提示</button>';

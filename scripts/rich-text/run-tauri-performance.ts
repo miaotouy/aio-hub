@@ -8,7 +8,7 @@ import { cpus, platform, release } from "node:os";
 import { CustomParser } from "../../src/tools/rich-text-renderer/core/CustomParser";
 import { createCorpus, splitChunks } from "./bench-corpus";
 import { astValue, signature } from "./bench-shared";
-import { openTauriRendererSession } from "./tauri-renderer-session";
+import { openTauriPerformanceSession } from "./tauri-performance-session";
 import { installTauriMemoryPage } from "./tauri-memory-page";
 import { runTauriPerformancePage } from "./tauri-performance-page";
 import {
@@ -50,21 +50,14 @@ const cases = createCorpus(sizes).filter((x) =>
 if (!cases.length) throw new Error("No matching corpus cases");
 const outDir = resolve(values["out-dir"]!);
 await mkdir(outDir, { recursive: true });
-const session = await openTauriRendererSession(values.instance);
-const { page, connection } = session;
-const errors: string[] = [];
-page.on("pageerror", (error) => errors.push(error.message));
-page.on("console", (message) => {
-  if (message.type() === "error") errors.push(message.text());
-});
-const cdp = await page.context().newCDPSession(page);
-await cdp.send("Performance.enable");
+const session = await openTauriPerformanceSession(values.instance);
+const errors = session.errors;
 const rows: TauriPerformanceRow[] = [];
 const report: Record<string, unknown> = {
   createdAt: new Date().toISOString(),
   sourceRevision: (await Bun.$`git rev-parse HEAD`.text()).trim(),
   worktreeDirty: !!(await Bun.$`git status --porcelain`.text()).trim(),
-  runtime: await cdp.send("Browser.getVersion"),
+  runtime: session.runtime,
   machine: {
     cpu: cpus()[0]?.model,
     logicalCpus: cpus().length,
@@ -110,62 +103,67 @@ async function save() {
   );
 }
 async function metrics() {
-  return Object.fromEntries(
-    (await cdp.send("Performance.getMetrics")).metrics.map((x) => [
-      x.name,
-      x.value,
-    ])
-  );
+  return session.metrics();
 }
+let referenceParser = new CustomParser();
 const expected = (markdown: string) =>
   signature(
     astValue(
-      new CustomParser().parse(
+      referenceParser.parse(
         markdown.endsWith("\n") ? markdown : markdown + "\n"
       ),
       true
     )
   );
 try {
-  report.probe = await page.evaluate(installTauriMemoryPage, {
+  const probe = await session.evaluate(installTauriMemoryPage, {
     componentUrl: session.componentUrl,
     measureActivity: true,
   });
+  report.probe = probe;
+  referenceParser = new CustomParser(
+    new Set(probe.parserOptions.llmThinkRules.map((rule) => rule.tagName)),
+    probe.parserOptions.llmThinkRules,
+    probe.parserOptions.defaultToolCallCollapsed,
+    probe.parserOptions.vcpFuzzyModeEnabled
+  );
   for (const item of cases) {
     const expectedSignature = expected(item.markdown);
     const chunks = splitChunks(item.markdown, chunkSize);
     // The small warmup initializes the real tokenizer/highlighter path outside measured cycles.
     const warm = splitChunks(item.markdown, 1024)[0];
-    await page.evaluate(runTauriPerformancePage, {
+    await session.evaluate(runTauriPerformancePage, {
       mode: "static" as const,
       markdown: warm,
       chunks: [],
       intervalMs,
       expectedSignature: expected(warm),
+      allowMissingLongTasks: session.allowMissingLongTasks,
     });
-    await page.evaluate(() => window.__RICH_TEXT_MEMORY__!.dispose());
+    await session.evaluate(() => window.__RICH_TEXT_MEMORY__!.dispose());
     await Bun.sleep(300);
     for (let cycle = 1; cycle <= cycles; cycle++) {
       for (const mode of modes) {
-        await connection.verify(page, "main");
+        await session.verify();
         const before = await metrics();
-        const sample = await page.evaluate(runTauriPerformancePage, {
+        const sample = await session.evaluate(runTauriPerformancePage, {
           mode,
           markdown: item.markdown,
           chunks,
           intervalMs,
           expectedSignature,
+          allowMissingLongTasks: session.allowMissingLongTasks,
         });
         const after = await metrics();
         // DOM/editor counts are captured before disposal. Lifecycle cleanup is saved separately.
-        await page.screenshot({
+        await session.screenshot({
           path: resolve(
             outDir,
             item.id.replace(/[^\w-]/g, "-") + "-" + mode + "-" + cycle + ".png"
           ),
         });
-        await page.evaluate(() => window.__RICH_TEXT_MEMORY__!.dispose());
-        const afterDispose = await page.evaluate(
+        await session.evaluate(() => window.__RICH_TEXT_MEMORY__!.dispose());
+        const afterDispose = await session.evaluate(
           () => window.__RICH_TEXT_MEMORY__!.activity().components
         );
         rows.push({
@@ -203,12 +201,15 @@ try {
   report.failure = String(error);
   process.exitCode = 1;
 } finally {
-  await page
+  await session
     .evaluate(() => window.__RICH_TEXT_MEMORY__?.cleanup())
     .catch(() => {});
+  await session.close();
+  if (errors.length) {
+    report.status = "runtime-errors";
+    process.exitCode = 1;
+  }
   await save();
-  await cdp.detach();
-  await connection.close();
 }
 console.log(
   JSON.stringify({

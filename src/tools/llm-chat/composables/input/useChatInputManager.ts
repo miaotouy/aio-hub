@@ -29,6 +29,7 @@
 
 import { ref, watch, nextTick, type Ref } from "vue";
 import { listen } from "@tauri-apps/api/event";
+import { fileUriToPath } from "@/utils/fileDropPaths";
 import { getOrCreateInstance } from "@/utils/singleton";
 import {
   useAttachmentManager,
@@ -1340,12 +1341,17 @@ class ChatInputManager {
     if (!text) return { successCount: 0, failedCount: 0, totalCount: 0 };
 
     // 采用“锚点切割法”结合“行内贪婪匹配”来更准确地识别路径
-    // 1. 识别所有可能的路径起始位置 (file:// 协议或 Windows 盘符)
+    // 1. 识别文件 URI、Windows 盘符和独立行首的 POSIX 绝对路径。
     const anchors: { index: number; prefix: string }[] = [];
-    const anchorRegex = /file:\/\/\/?|[a-zA-Z]:[\\\/]/g;
+    const anchorRegex =
+      /file:\/\/\/?(?:[a-zA-Z]:[\\/])?|[a-zA-Z]:[\\/]|^[ \t]*\/(?=[^/\s])/gm;
     let anchorMatch;
     while ((anchorMatch = anchorRegex.exec(text)) !== null) {
-      anchors.push({ index: anchorMatch.index, prefix: anchorMatch[0] });
+      const prefix = anchorMatch[0].trimStart();
+      anchors.push({
+        index: anchorMatch.index + anchorMatch[0].length - prefix.length,
+        prefix,
+      });
     }
 
     if (anchors.length === 0)
@@ -1387,14 +1393,15 @@ class ChatInputManager {
     for (const rawPath of uniquePaths) {
       try {
         logger.info("[convertPaths] 处理路径", { rawPath });
-        let cleanPath = rawPath;
-        if (cleanPath.startsWith("file://")) {
-          cleanPath = cleanPath.replace(/^file:\/\/\/?/, "");
-          if (cleanPath.startsWith("/") && cleanPath.charAt(2) === ":") {
-            cleanPath = cleanPath.substring(1);
-          }
+        let cleanPath = rawPath.startsWith("file:")
+          ? fileUriToPath(rawPath)
+          : rawPath;
+        if (!cleanPath) {
+          failedCount++;
+          continue;
         }
-        cleanPath = cleanPath.replace(/\//g, "\\");
+        if (/^[a-z]:[\\/]/i.test(cleanPath))
+          cleanPath = cleanPath.replace(/\//g, "\\");
 
         const beforeIds = new Set(
           this.attachmentManager.attachments.value.map((a) => a.id)
@@ -1410,7 +1417,8 @@ class ChatInputManager {
           afterAssets.find(
             (a) =>
               !beforeIds.has(a.id) &&
-              (a.path === cleanPath || a.name === cleanPath.split("\\").pop())
+              (a.path === cleanPath ||
+                a.name === cleanPath.split(/[/\\]/).pop())
           ) || afterAssets.find((a) => a.path === cleanPath);
 
         if (targetAsset) {

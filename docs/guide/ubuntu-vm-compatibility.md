@@ -4,17 +4,17 @@
 
 ## 环境与工作目录
 
-| 项目 | 本次环境 |
-| --- | --- |
-| VMware Workstation | 26.0.0，build 25388281 |
-| 宿主 CPU | AMD Ryzen 9 5900X，24 个逻辑处理器 |
-| 虚拟机 | 4 vCPU、16 GB RAM，NAT |
-| 系统 | Ubuntu 24.04.4 LTS，Wayland |
-| 内核 | 6.17.0-35-generic |
-| WebKitGTK | 2.52.3 |
-| Bun | 1.3.14 |
-| Node.js | 22.22.0，安装在用户目录 |
-| Rust / Cargo | 1.95.0 |
+| 项目               | 本次环境                           |
+| ------------------ | ---------------------------------- |
+| VMware Workstation | 26.0.0，build 25388281             |
+| 宿主 CPU           | AMD Ryzen 9 5900X，24 个逻辑处理器 |
+| 虚拟机             | 4 vCPU、16 GB RAM，NAT             |
+| 系统               | Ubuntu 24.04.4 LTS，Wayland        |
+| 内核               | 6.17.0-35-generic                  |
+| WebKitGTK          | 2.52.3                             |
+| Bun                | 1.3.14                             |
+| Node.js            | 22.22.0，安装在用户目录            |
+| Rust / Cargo       | 1.95.0                             |
 
 - Windows 工作区：`D:/CodexShared/aio-hub-Ubuntu`。
 - Ubuntu 原生检出：`/home/mty/aio-hub-Ubuntu`。
@@ -72,16 +72,16 @@ try {
 
 基于 `a74aa3ae1`，另含本轮 `index.html` 的 CSP 修复：
 
-| 验证项 | 结果 |
-| --- | --- |
-| `bun run build:tsc` | 通过 |
-| `bun run build:vite` | 通过，含打包体积和混合导入警告 |
-| Tauri Debug 原生构建，生产前端资源，`--no-bundle` | 通过 |
-| 主题颜色、渠道连接状态相关测试 | 2 个文件、11 条通过 |
-| 主页 | 46 个工具展示、搜索、分类筛选、侧栏展开/折叠通过 |
-| 设置页 | 常用设置、数据与存储、主题与界面、样式覆盖、AI 渠道、模型元数据、OCR 服务、工具模块、运行环境、日志、关于与更新均已打开并采集真实截图 |
-| 主题与持久化 | 浅色/深色切换通过；重启后主题及侧栏折叠状态保留 |
-| 运行环境检测 | FFmpeg 6.1.1、FFprobe 6.1.1、Git 2.43.0 均显示就绪 |
+| 验证项                                            | 结果                                                                                                                                  |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run build:tsc`                               | 通过                                                                                                                                  |
+| `bun run build:vite`                              | 通过，含打包体积和混合导入警告                                                                                                        |
+| Tauri Debug 原生构建，生产前端资源，`--no-bundle` | 通过                                                                                                                                  |
+| 主题颜色、渠道连接状态相关测试                    | 2 个文件、11 条通过                                                                                                                   |
+| 主页                                              | 46 个工具展示、搜索、分类筛选、侧栏展开/折叠通过                                                                                      |
+| 设置页                                            | 常用设置、数据与存储、主题与界面、样式覆盖、AI 渠道、模型元数据、OCR 服务、工具模块、运行环境、日志、关于与更新均已打开并采集真实截图 |
+| 主题与持久化                                      | 浅色/深色切换通过；重启后主题及侧栏折叠状态保留                                                                                       |
+| 运行环境检测                                      | FFmpeg 6.1.1、FFprobe 6.1.1、Git 2.43.0 均显示就绪                                                                                    |
 
 ### 已修复：Linux 打包应用的本地资源读取
 
@@ -100,3 +100,93 @@ try {
 应用使用独立数据目录 `/home/mty/.cache/aio-compat/2026-10-29/app-data`。构建、启动和测试日志在同级目录。
 
 通过 Debug 构建已有的嵌入式 WebDriver 连接真实 WebKitGTK 窗口，端口为虚拟机回环地址 `127.0.0.1:4457`。截图采用 WebKitGTK 原生 snapshot。本轮控制脚本、截图和结构摘要保存在 Windows 工作区的 `.tmp/ubuntu-compat/`，供开发复查。
+
+## 后续脚手架与性能验证
+
+本轮已将临时探查能力接入正式 Dev Control：Linux 独立实例、嵌入式连接、身份核验、受检查的 DOM 输入、脱敏截图、诊断游标和宿主机 SSH 包装。使用方式见[开发界面控制指南](./dev-control.md)。
+
+真实 Renderer 首测与最近一次 VCP 预检优化的同 WebKit 对照见 [Ubuntu 性能初测](../Plan/ubuntu-compatibility-performance-20261029.md)。尺寸调整仍保留明确的未确认状态，后续小视口测试继续等待该问题定位。
+
+复杂会话、完整主题矩阵和 HTML 预览交互的后续走查见 [Ubuntu 复杂样本与主题矩阵走查](../Plan/ubuntu-ui-matrix-20261029.md)。本轮同时补充了独立数据目录的 asset protocol 授权。
+
+上游业务变更同步后的预览交互、附件路径修复与滚动诊断见 [Ubuntu 上游同步与回归复测](../Plan/ubuntu-upstream-retest-20261029.md)。
+
+## 本地媒体专项补查
+
+2026-10-29 的 Windows 内容兼容性专项发现，Linux 的点目录资源授权和 WebKitGTK 媒体装载需分开验证。点目录 `asset://` 的 403 已通过显式点目录匹配策略修复；FFmpeg 转码与序列帧合成通过，后续已补齐页面媒体 CSP，并接入按文件授权的 HTTP 流式读取。通用视频/音频播放、跳转与截图的实机结果见专项补查记录。详见 [专项记录](../Plan/ubuntu-windows-compatibility-20261029.md)。
+
+本机缺少 `h264parse` 所在的 `gstreamer1.0-plugins-bad`。本轮从 Ubuntu 官方包提取解析插件到用户缓存，通过测试实例的 `GST_PLUGIN_PATH_1_0` 完成 CLI 解码对照。后续部署可通过系统包管理器安装该组件；WebView 的播放验收还需覆盖实际资源协议和读取行为。
+
+
+本地播放的入口、授权生命周期、范围读取及 Linux 打包依赖见[本地音视频播放架构](../architecture/local-media-playback.md)。首轮使用用户缓存内的解析插件，最终样例在撤销该环境注入后仍可播放；Debian 系统依赖与 AppImage 媒体框架配置已补齐，安装包部署验证另行进行。
+
+本机 Node 22 安装于 `$HOME/.local/bin`，运行检查和构建时统一使用：
+
+```bash
+export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
+```
+
+## 客体鼠标与键盘
+
+GNOME/Wayland 下，通过 SSH 调用当前用户的 Mutter RemoteDesktop 与 ScreenCast 接口，可向虚拟机桌面发送真实鼠标、键盘事件。输入位于客体合成器，宿主机鼠标保持自由。实现为 `scripts/dev-control/mutter-input.py`，正式入口：
+
+```powershell
+# 查询当前客体显示器及坐标范围
+'{"actions":[]}' | bun run dev:vm -- input --stdin
+
+# 在客体显示器坐标 (176, 228) 右键，随后按 Escape
+'{"actions":[{"op":"click","x":176,"y":228,"button":"right"},{"op":"key","key":"Escape"}]}' |
+  bun run dev:vm -- input --stdin
+```
+
+默认选择主显示器；多显示器可传 `"monitor":"Virtual-1"`，名称与尺寸以返回信息为准。坐标相对所选显示器，先观察客体截图再操作。窗口缩放、移动后重新观察；Wayland 的窗口位置 API 可能返回 `(0,0)`，本机已遇到该情况。Dev Control 返回的 DOM 坐标需结合实际窗口在客体屏幕中的位置换算。
+
+支持的操作：
+
+| 操作 | JSON 字段 |
+| --- | --- |
+| 移动 | `{"op":"move","x":100,"y":200}` |
+| 单击/右键/中键 | `{"op":"click","x":100,"y":200,"button":"left"}`，button 可用 `left/right/middle` |
+| 左键拖动 | `{"op":"drag","x":100,"y":200,"toX":300,"toY":250}` |
+| 滚轮 | `{"op":"scroll","dx":0,"dy":200}`，在当前客体指针位置滚动 |
+| 按键 | `{"op":"key","key":"Escape"}`，可用 Escape、Return、Tab、space、四方向键 |
+
+批次最多 64 步，输入 JSON 上限 64 KiB。所有动作先完成参数与显示器边界检查，之后才发送输入；同一桌面上的批次串行执行。异常时释放已按下的按钮/按键并停止临时会话。失败输出的 `error.details.completed` 记录已经完成的动作数，重试前核对客体状态。
+
+### 客体桌面截图
+
+向批次添加 `screenshot`，会在操作后通过 PipeWire/GStreamer 保存整个所选显示器的 PNG：
+
+```powershell
+'{"actions":[],"screenshot":"/home/mty/aio-hub-Ubuntu/.tmp/ubuntu-crash/guest-desktop.png"}' |
+  bun run dev:vm -- input --stdin
+scp ubuntu-vm:/home/mty/aio-hub-Ubuntu/.tmp/ubuntu-crash/guest-desktop.png .tmp/ubuntu-crash/guest-desktop.png
+```
+
+目标为客体绝对路径，父目录需存在，每次使用新文件名。桌面截图包含所选显示器的其他窗口，保存在本机，使用测试桌面并检查内容后再对外分享。需要应用局部截图或脱敏时，沿用 Dev Control `observe/screenshot`。
+
+### 环境边界
+
+- SSH 用户需已登录 GNOME 桌面。本机 Ubuntu 24.04 的 Mutter 46 已通过实际输入验证；其他合成器和版本以运行结果为准。
+- Python 使用客体已有的 PyGObject/Gio；桌面截图另外使用 Gst、PipeWire source 和 PNG encoder。本轮验证使用已安装组件。
+- 接口连接当前用户的会话 D-Bus，批次结束即释放远程桌面/录屏会话。权限或能力失败时检查错误，保留现有系统权限与会话策略。
+- `xdotool` 面向 X11；本机测试包含原生 Wayland WebView，因此选用 Mutter 的客体输入。VMware VNC/RDP、`/dev/uinput` 和宿主机鼠标注入留作其他环境的独立方案。
+- 该命令控制整个客体桌面；与 Dev Control 的窗口定位分层使用。选择目标、聚焦目标窗口和观察结果由调用方负责。批次锁覆盖同一辅助器进程间的冲突，客体上的人工操作仍可能改变焦点。
+
+辅助器的参数契约测试在客体执行：
+
+```bash
+python3 scripts/dev-control/mutter-input.test.py
+```
+
+## WebKitGTK 2.52 渲染策略修复
+
+2026-10-30 在 WebKitGTK 2.52.6 上确认：应用先前自动设置 `WEBKIT_DISABLE_DMABUF_RENDERER=1`，会在含视频的右键菜单与页面切换场景触发加速合成空指针，主进程段错误。修复后，2.52 及以上使用 WebKit 自动渲染策略，较老版本保留原有兼容默认值；显式传入的渲染环境变量保持原值。
+
+如果启动脚本还传入旧渲染参数，先清除后作对照：
+
+```bash
+env -u WEBKIT_DISABLE_DMABUF_RENDERER -u WEBKIT_DISABLE_COMPOSITING_MODE ./aiohub
+```
+
+崩溃堆栈、客体原生输入前后对照、实际播放画面与验证范围见[崩溃专项](../Plan/ubuntu-webkit-crash-investigation-20261030.md)。

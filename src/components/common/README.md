@@ -262,7 +262,7 @@
 
 ### VideoPlayer
 
-全功能视频播放器，基于 `plyr` 进行了深度定制和功能增强。
+基于原生 HTML video 的全功能视频播放器。音视频组件在 Linux 下通过共享媒体入口读取本地文件，源切换与卸载时释放授权，接口与平台说明见[本地音视频播放架构](../../../docs/architecture/local-media-playback.md)。
 
 - **核心功能**:
   - **逐帧播放**: 支持通过快捷键 (`,` 和 `.`) 进行精确的逐帧前进/后退。
@@ -444,6 +444,8 @@ Chat 与媒体生成共用的输入区上方面板，位于 `input-panel/`；状
   - `original` / `modified` (string): Diff 模式下的原始内容和修改后内容。
   - `readOnly` (boolean): 只读模式。
 
+- **Diff 双向绑定**：`v-model:original` / `v-model:modified` 接收 Monaco 两侧编辑后的内容。父级替换文本继续通过对应 props 更新；切换编辑器实例和卸载时清理内容监听。复制、保存和补丁生成应使用这两个绑定值。
+
 - **使用示例** (来自 [`RequestPanel.vue`](../../tools/api-tester/components/RequestPanel.vue)):
 
   ```vue
@@ -458,8 +460,8 @@ Chat 与媒体生成共用的输入区上方面板，位于 `input-panel/`；状
   <RichCodeEditor
     ref="richCodeEditorRef"
     :diff="true"
-    :original="leftContent"
-    :modified="rightContent"
+    v-model:original="leftContent"
+    v-model:modified="rightContent"
     editor-type="monaco"
     language="plaintext"
   />

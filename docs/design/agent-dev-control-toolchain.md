@@ -297,3 +297,11 @@ src/dev/control/
 - 窗口刷新会在后续 CLI 调用重新连接，开发桥支持自身 HMR 清理和重启。Rust 重编译替换应用进程时，启动器重新核验监听与原生身份，并更新进程归属；已在真实 dev 实例验证恢复。
 - 第一阶段使用新的连接模块，性能探针保持现有测量语义，通用薄 CDP 提取留到有复用需要时处理。
 - 已完成真实 HMR 主窗口、分离 JSON 工具窗口和 production 前端静态开发的操作与截图走查。
+
+## Ubuntu 后续调查
+
+2026-10-29 已在 Ubuntu 真实 WebKitGTK 窗口验证嵌入式 WebDriver 的求值、元素点击和截图通道。Linux 传输适配、输入语义差异、运行模式与实例生命周期的建议见 [Ubuntu 开发控制脚手架调查](./linux-dev-control-investigation.md)。当前工作区已接入 Linux 嵌入式传输、独立实例与安全操作闭环；正式用法与平台能力边界见开发界面控制指南。
+
+## GNOME 客体输入补充（2026-10-30）
+
+Linux 的嵌入式 WebDriver 继续负责身份核验、DOM 定位、状态与 WebView 截图。需要真实输入时，通过 `dev:vm input --stdin` 连接客体 Mutter 的临时 RemoteDesktop/ScreenCast 会话，直接注入客体鼠标/键盘；PipeWire 提供所选显示器截图。此入口适用于已登录的同用户 GNOME 桌面，按显示器坐标操作，与窗口定位层分离。参数预检、批次互斥、按键释放和会话清理位于 Python 辅助器；SSH 包装保持沿用现有虚拟机路径配置。详细用法见[客体输入指南](../guide/ubuntu-vm-compatibility.md#客体鼠标与键盘)。

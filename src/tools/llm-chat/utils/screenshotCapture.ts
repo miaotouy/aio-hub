@@ -34,7 +34,10 @@ import type {
   WallpaperMode,
 } from "../components/screenshot/screenshotTypes";
 import { createModuleLogger } from "@/utils/logger";
-import { createScreenshotLayoutFix } from "@/utils/screenshotLayout";
+import {
+  createScreenshotLayoutFix,
+  isolateScreenshotIframeDocuments,
+} from "@/utils/screenshotLayout";
 
 const logger = createModuleLogger("screenshot-capture");
 
@@ -303,6 +306,7 @@ export async function captureElementAsCanvas(
 
       copyCssVariables(element, el);
       applyLayoutGuards(el, { hideScrollbars, hasWallpaper });
+      isolateScreenshotIframeDocuments(el);
     },
   });
 }

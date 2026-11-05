@@ -218,6 +218,8 @@ export interface StateSyncConfig<K extends StateKey = StateKey> {
   stateKey: K;
   /** 是否自动推送状态变化 */
   autoPush?: boolean;
+  /** Suspend deep dependency tracking while high-frequency state uses its own channel. */
+  autoPushEnabled?: () => boolean;
   /** 是否自动接收状态更新 */
   autoReceive?: boolean;
   /** 是否启用增量更新 */

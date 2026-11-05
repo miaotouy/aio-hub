@@ -180,71 +180,45 @@ export function tokensToRawText(tokens: Token[]): string {
  * 检测以 [ 开头的链接（包括图片链接和普通链接），移除它们之间的硬换行
  */
 export function optimizeBadgeLineBreaks(nodes: AstNode[]): AstNode[] {
-  return nodes.map((node) => {
-    // 只处理段落节点
-    if (node.type !== "paragraph" || !node.children) {
-      // 递归处理子节点
-      if (node.children) {
-        return {
-          ...node,
-          children: optimizeBadgeLineBreaks(node.children),
-        };
+  let optimized: AstNode[] | undefined;
+  for (let index = 0; index < nodes.length; index++) {
+    const node = nodes[index];
+    let replacement = node;
+    if (node.children) {
+      let children: AstNode[];
+      if (node.type === "paragraph") {
+        const original = node.children;
+        let changed: AstNode[] | undefined;
+        for (let i = 0; i < original.length; i++) {
+          const current = original[i];
+          const previous = original[i - 1];
+          const isLinkLike = (n: AstNode | undefined): boolean =>
+            n?.type === "link" || n?.type === "image";
+          // A short separator may stay between links; remove only the hard break.
+          if (
+            current.type === "hard_break" &&
+            isLinkLike(original[i + 1]) &&
+            (isLinkLike(previous) ||
+              (previous?.type === "text" &&
+                typeof previous.props?.content === "string" &&
+                previous.props.content.trim().length <= 3 &&
+                isLinkLike(original[i - 2])))
+          ) {
+            changed ??= original.slice(0, i);
+          } else {
+            changed?.push(current);
+          }
+        }
+        children = changed ?? original;
+      } else {
+        children = optimizeBadgeLineBreaks(node.children);
       }
-      return node;
+      if (children !== node.children) replacement = { ...node, children };
     }
-
-    // 处理段落内的子节点
-    const children = node.children;
-    const optimizedChildren: AstNode[] = [];
-
-    for (let i = 0; i < children.length; i++) {
-      const current = children[i];
-      const next = children[i + 1];
-      const afterNext = children[i + 2];
-      const afterAfterNext = children[i + 3];
-
-      // 检测是否是链接或图片节点
-      const isLinkLike = (n: AstNode | undefined): boolean => {
-        if (!n) return false;
-        return n.type === "link" || n.type === "image";
-      };
-
-      // 模式1：链接 + 硬换行 + 链接
-      if (
-        isLinkLike(current) &&
-        next?.type === "hard_break" &&
-        isLinkLike(afterNext)
-      ) {
-        // 保留当前节点，跳过硬换行
-        optimizedChildren.push(current);
-        i++; // 跳过 hard_break
-        continue;
-      }
-
-      // 模式2：链接 + 短文本分隔符 + 硬换行 + 链接
-      if (
-        isLinkLike(current) &&
-        next?.type === "text" &&
-        typeof next.props?.content === "string" &&
-        next.props.content.trim().length <= 3 && // 短分隔符，如 " •"
-        afterNext?.type === "hard_break" &&
-        isLinkLike(afterAfterNext)
-      ) {
-        // 保留当前链接和分隔符，跳过硬换行
-        optimizedChildren.push(current);
-        optimizedChildren.push(next); // 分隔符文本
-        i += 2; // 跳过分隔符和硬换行
-        continue;
-      }
-
-      optimizedChildren.push(current);
-    }
-
-    return {
-      ...node,
-      children: optimizedChildren,
-    };
-  });
+    if (replacement !== node) optimized ??= nodes.slice(0, index);
+    optimized?.push(replacement);
+  }
+  return optimized ?? nodes;
 }
 
 /**

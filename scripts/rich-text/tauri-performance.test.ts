@@ -78,6 +78,17 @@ describe("Tauri performance timing contract", () => {
     expect(result.frameGapMs).toMatchObject({ count: 4, max: 30 });
   });
 
+  it("keeps unsupported long-task metrics unavailable instead of reporting zero", () => {
+    const input = sample();
+    input.longTaskSupported = false;
+    input.longTasks = [];
+    const result = summarizeTauriPerformance(input);
+    expect(result.longTaskCount).toBeNull();
+    expect(result.longTaskTotalMs).toBeNull();
+    expect(result.longestTaskMs).toBeNull();
+    expect(result.completionMs).toBe(30);
+  });
+
   it("uses mount origin for static first content and preserves an empty update distribution", () => {
     const input = sample();
     input.mode = "static";

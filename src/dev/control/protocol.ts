@@ -65,7 +65,9 @@ export type ControlStep =
     }
   | { op: "state"; scope: string }
   | { op: "action"; name: string; args?: unknown }
-  | { op: "eval"; expression: string };
+  | { op: "eval"; expression: string }
+  | { op: "resize"; width: number; height: number }
+  | { op: "diagnostics"; since?: number; limit?: number; documentId?: string };
 
 export interface ControlRequest {
   instance?: string;

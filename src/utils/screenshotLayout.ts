@@ -64,3 +64,25 @@ export function createScreenshotLayoutFix(
     );
   };
 }
+
+/**
+ * modern-screenshot expands same-origin iframes into nested HTML elements.
+ * Give each expanded document its original viewport boundary so fixed/absolute
+ * descendants remain inside that frame while the outer message is rasterized.
+ * Only the detached capture tree is changed; live frames keep running untouched.
+ */
+export function isolateScreenshotIframeDocuments(
+  clonedRoot: HTMLElement
+): void {
+  const documents = Array.from(
+    clonedRoot.querySelectorAll<HTMLElement>("html")
+  );
+  for (const documentRoot of documents) {
+    // The library has already copied the iframe element's computed box styles
+    // onto this node. Layout containment establishes the containing block for
+    // fixed descendants; paint containment clips them to the frame viewport.
+    // Keep that box in layout pixels, independent of preview transforms.
+    documentRoot.style.setProperty("contain", "layout paint", "important");
+    documentRoot.style.setProperty("overflow", "hidden", "important");
+  }
+}

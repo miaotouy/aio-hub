@@ -17,7 +17,7 @@ import type {
   ContextPreviewData,
   WorldbookEntryPreview,
 } from "../../types/context";
-import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
+import { getContextTokenCalculator } from "./token-calculator";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import { resolveAttachmentsBatch } from "./attachment-resolver";
 import { assetManagerEngine } from "@/composables/useAssetManager";
@@ -36,6 +36,7 @@ import type { MatchedWorldbookEntry } from "@/tools/st-worldbook-manager/types/w
 export async function buildPreviewDataFromContext(
   context: PipelineContext
 ): Promise<ContextPreviewData> {
+  const tokenCalculatorService = getContextTokenCalculator(context);
   const {
     messages,
     index: sessionIndex,

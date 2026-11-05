@@ -20,6 +20,7 @@
  * useScreenMonitor 监听，不在本 composable 内处理。
  */
 
+import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
 import { computed, onBeforeUnmount } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -50,6 +51,10 @@ export function useMonitorBox() {
   }
 
   async function openMonitorBox() {
+    if (!getNativeDesktopCapabilities().screenCapture) {
+      customMessage.info("屏幕监控需要 Windows，可使用本地视频工作区");
+      return;
+    }
     if (isMonitorBoxDetached.value) {
       // 已分离则聚焦
       const label = findMonitorBoxLabel();

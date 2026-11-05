@@ -69,6 +69,8 @@ import type {
   RichTextRendererStyleOptions,
 } from "@/tools/rich-text-renderer/types";
 import { buildRichTextRendererSettings } from "../../utils/richTextRendererSettings";
+import { useToolResultDisplay } from "../../composables/ui/useToolResultDisplay";
+import CodeMirrorSourceViewer from "@/tools/rich-text-renderer/components/nodes/code-block/CodeMirrorSourceViewer.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import MessageMenubar from "./MessageMenubar.vue";
@@ -486,72 +488,19 @@ const resolveAsset = (content: string) => {
   return processMessageAssetsSync(content, currentAgent.value);
 };
 
-// 处理工具调用结果内容：移除包围栏并格式化 JSON
-const processToolResultContent = (content: string): string => {
-  // 规范化换行符：Windows CRLF → LF，避免 \r 残留破坏 Markdown 解析器
-  let processed = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-
-  // 移除头尾包围栏
-  processed = processed
-    .replace(/^\[\[AIO工具调用结果信息汇总:\s*/i, "")
-    .replace(/\s*AIO工具调用结果结束\]\]$/i, "");
-
-  // 尝试检测并格式化 JSON（最多4层缩进）
-  try {
-    // 查找可能的 JSON 内容
-    const jsonMatch = processed.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const jsonStr = jsonMatch[0];
-      const parsed = JSON.parse(jsonStr);
-
-      // 自定义格式化：限制缩进深度为4层
-      const formatWithDepthLimit = (
-        obj: any,
-        depth: number = 0,
-        maxDepth: number = 4
-      ): string => {
-        if (depth >= maxDepth) {
-          return JSON.stringify(obj);
-        }
-
-        if (obj === null || obj === undefined) return String(obj);
-        if (typeof obj !== "object") return JSON.stringify(obj);
-
-        const indent = "  ".repeat(depth);
-        const nextIndent = "  ".repeat(depth + 1);
-
-        if (Array.isArray(obj)) {
-          if (obj.length === 0) return "[]";
-          const items = obj.map(
-            (item) =>
-              `${nextIndent}${formatWithDepthLimit(item, depth + 1, maxDepth)}`
-          );
-          return `[\n${items.join(",\n")}\n${indent}]`;
-        }
-
-        const keys = Object.keys(obj);
-        if (keys.length === 0) return "{}";
-
-        const items = keys.map((key) => {
-          const value = formatWithDepthLimit(obj[key], depth + 1, maxDepth);
-          return `${nextIndent}"${key}": ${value}`;
-        });
-        return `{\n${items.join(",\n")}\n${indent}}`;
-      };
-
-      const formatted = formatWithDepthLimit(parsed);
-      processed = processed.replace(jsonStr, formatted);
-    }
-  } catch {
-    // JSON 解析失败，保持原样
-  }
-
-  return processed.trim();
-};
-
-const displayContent = computed(() =>
-  processToolResultContent(props.message.content)
+const resultIsStreaming = computed(
+  () =>
+    props.message.status === "waiting" || props.message.status === "generating"
 );
+const {
+  content: displayContent,
+  preview: resultPreview,
+  current: getDisplayContent,
+} = useToolResultDisplay({
+  source: () => props.message.content,
+  expanded: () => !isCollapsed.value && !isEditing.value,
+  streaming: () => resultIsStreaming.value,
+});
 
 const activeRules = computed(() => {
   const agentId =
@@ -1155,7 +1104,7 @@ defineExpose({
                   v-if="!props.screenshotMode"
                   class="preview-btn"
                   @click="
-                    handlePreviewResult(displayContent, '原文（执行结果）')
+                    handlePreviewResult(getDisplayContent(), '原文（执行结果）')
                   "
                   title="预览渲染效果"
                 >
@@ -1177,7 +1126,9 @@ defineExpose({
                     <button
                       v-if="!props.screenshotMode"
                       class="preview-btn"
-                      @click="handlePreviewResult(displayContent, '执行结果')"
+                      @click="
+                        handlePreviewResult(getDisplayContent(), '执行结果')
+                      "
                       title="预览渲染效果"
                     >
                       <Eye :size="14" />
@@ -1185,7 +1136,16 @@ defineExpose({
                     </button>
                   </div>
                 </div>
-                <pre class="tool-result-text">{{ displayContent }}</pre>
+                <CodeMirrorSourceViewer
+                  v-if="displayContent.length > 100000"
+                  class="tool-result-source"
+                  :content="displayContent"
+                  :is-expanded="false"
+                  :code-font-size="12"
+                  :word-wrap-enabled="true"
+                  :closed="!resultIsStreaming"
+                />
+                <pre v-else class="tool-result-text">{{ displayContent }}</pre>
               </div>
             </div>
 
@@ -1248,8 +1208,7 @@ defineExpose({
             message.metadata?.vcpResponse ? "[上游工具]" : "[未知工具]"
           }}</span>
           <span class="preview-text">
-            {{ displayContent.trim().slice(0, 120)
-            }}{{ displayContent.trim().length > 120 ? "..." : "" }}
+            {{ resultPreview }}
           </span>
         </div>
         <div
@@ -2003,6 +1962,12 @@ defineExpose({
   overflow-x: auto;
   max-height: 400px;
   overflow-y: auto;
+}
+
+.tool-result-source {
+  max-height: 400px;
+  border: var(--border-width) solid var(--border-color);
+  background: var(--input-bg);
 }
 
 /* 预览按钮 */

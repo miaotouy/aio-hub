@@ -110,6 +110,63 @@ bun run rich-text:embedded:tauri -- --instance ubuntu-probe --out-dir .tmp/embed
 
 Ubuntu GNOME 的右键菜单、真实鼠标事件、拖动和播放器手势，可通过 `bun run dev:vm -- input --stdin` 直接调用客体 Mutter。该入口经 SSH 连接当前用户的桌面会话，支持客体截图，宿主机鼠标保持自由。常规定位与读取状态继续使用 Dev Control；操作方法与坐标边界见 [客体鼠标与键盘](./ubuntu-vm-compatibility.md#客体鼠标与键盘)。
 
+## Ubuntu 独立运行与宿主机控制
+
+在 Ubuntu 原生检出中构建生产前端资源 Debug 程序。构建与运行均开启开发控制，Release 继续使用原有发布流程。
+
+```bash
+export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
+export AIO_DEV_CONTROL=1
+bun run generate:shims
+bun run build:tsc
+bun run build:vite
+mkdir -p .tmp/dev-control
+printf '%s' '{"build":{"beforeBuildCommand":""}}' > .tmp/dev-control/tauri.build.json
+bun run tauri build --debug --no-bundle --config "$(pwd)/.tmp/dev-control/tauri.build.json"
+bun run dev:control -- start --instance ubuntu-probe
+bun run dev:control -- status --instance ubuntu-probe
+bun run dev:control -- stop --instance ubuntu-probe
+```
+
+独立运行入口接收可选的 `--binary <绝对路径>`，要求产物保留开发桥。每次启动创建独立数据目录，日志写入 `.dev-data/dev-control/launchers/`。停止操作核对启动进程身份，并由 launcher 终止自己创建的应用进程组。
+
+Windows 工作区可直接调用 SSH 包装：
+
+```powershell
+bun run dev:vm -- doctor
+bun run dev:vm -- start --instance ubuntu-probe
+bun run dev:vm -- control windows --instance ubuntu-probe
+bun run dev:vm -- control observe --instance ubuntu-probe --limit 20
+bun run dev:vm -- control navigate /settings --instance ubuntu-probe
+bun run dev:vm -- control click --css ".settings-btn" --instance ubuntu-probe
+bun run dev:vm -- stop --instance ubuntu-probe
+```
+
+默认 SSH 别名为 `ubuntu-vm`；原生与共享检出路径沿用本机工作流，可通过 `AIO_VM_SSH_HOST`、`AIO_VM_REPO`、`AIO_VM_SHARED_REPO` 覆盖。截图会自动复制到宿主工作区，结果返回可预览的本地绝对路径。`batch --stdin` 可接收宿主机管道中的 JSON；`--file`、`--text-file` 等文件参数在 guest 中解析。
+
+`dev:vm sync` 只将当前宿主分支的已提交内容快进到干净的同名 guest 分支，保留本地改动时会停止同步。VM 需要启动时使用 `bun run dev:vm -- vm-start --vmx "D:\Virtual Machines\Ubuntu 64-bit\Ubuntu 64-bit.vmx"`，启动器处理本机遇到的 CPU 亲和性问题；已运行的 VM 保持原状。细节见 [Ubuntu 虚拟机兼容性验证](./ubuntu-vm-compatibility.md)。
+
+Linux 的 `dev --agent` 与 `dev:static --agent` 也选择嵌入式连接。独立程序通过 `bundled-debug` 模式保留真实本地资源来源，适合 CSP 与打包行为走查。
+
+富文本内嵌预览的交互回归也可复用独立实例：
+
+```bash
+bun run rich-text:embedded:tauri -- --instance ubuntu-probe --out-dir .tmp/embedded-preview
+```
+
+该入口在 WebView2 与 WebKitGTK 中运行同一组页面契约，报告包含运行引擎、逐项结果和诊断错误。WebKitGTK 使用生产资源 Debug 实例。
+
+### Linux 输入与截图能力
+
+- 已提供 inspect / observe / screenshot、显式 eval、开发桥 navigate / state / action，以及 CSS、testid、placeholder 定位。
+- click / fill / select / scroll 使用 DOM 输入，结果标记 `inputBackend: "dom"`。写入前检查唯一性、可见性、禁用态、稳定性和遮挡；输入框还检查只读状态。写操作超时后先 observe 核对结果。
+- role / label 定位、双击、修饰键和 press 暂时返回 `UNSUPPORTED_CAPABILITY`。通过 `state capabilities` 查看当前能力；需要系统指针、原生对话框或用户激活语义时另选原生验证路径。
+- 原生 WebKit 截图先在内存中遮罩密码框、`[data-dev-sensitive]` 和显式 mask，再裁切并写盘；敏感区域或视口在截图期间变化时中止保存。
+
+### GNOME 客体原生输入
+
+Ubuntu GNOME 的右键菜单、真实鼠标事件、拖动和播放器手势，可通过 `bun run dev:vm -- input --stdin` 直接调用客体 Mutter。该入口经 SSH 连接当前用户的桌面会话，支持客体截图，宿主机鼠标保持自由。常规定位与读取状态继续使用 Dev Control；操作方法与坐标边界见 [客体鼠标与键盘](./ubuntu-vm-compatibility.md#客体鼠标与键盘)。
+
 ## 场景准备与首次使用
 
 隔离实例使用独立数据，模型渠道、智能体和会话都需按场景准备。聊天页在打开时直接展示工作区；发送消息缺少可用模型时才打开模型选择器。验证搜索、排序、滚动等布局行为时，通过应用现有 store、service 或开发适配器载入样例，再在实际页面操作。

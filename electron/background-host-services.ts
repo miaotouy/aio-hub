@@ -12,6 +12,7 @@ import type {
 /** Both Renderer and utility process use these exact Main-owned transaction owners. */
 export function createBackgroundHostServices(owners: {
   environment: BackgroundHostServices["host.initialize"]["result"];
+  resolveProxy?: (url: string) => Promise<string>;
   configuration: Pick<LlmConfiguration, "load">;
   files?: Pick<ContextFilePolicyReader, "load">;
   assets?: { getRoot(): Promise<string> };
@@ -27,6 +28,17 @@ export function createBackgroundHostServices(owners: {
       case "context.assets.root":
         if (!owners.assets) throw new Error("资产服务尚未连接");
         return owners.assets.getRoot();
+      case "llm.proxy.resolve": {
+        if (!owners.resolveProxy) throw new Error("系统代理服务尚未连接");
+        const url = new URL(request.params.url);
+        if (
+          !["http:", "https:"].includes(url.protocol) ||
+          url.username ||
+          url.password
+        )
+          throw new Error("系统代理地址无效");
+        return owners.resolveProxy(url.href);
+      }
       case "llm.configuration.load":
         return owners.configuration.load();
       case "llm.keys.execute": {

@@ -277,6 +277,7 @@ const backgroundRuntime = new BackgroundRuntime({
       if (typeof root !== "string") throw new Error("资产目录无效");
       return root;
     } },
+    resolveProxy: (url) => session.defaultSession.resolveProxy(url),
     configuration: llmConfiguration,
     keys: llmKeyState,
   }),

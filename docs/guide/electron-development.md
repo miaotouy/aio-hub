@@ -186,9 +186,9 @@ preload 使用 `contextIsolation: true`、`sandbox: true`、`nodeIntegration: fa
 
 ## Worker 与 Main 内部服务
 
-`electron/background-host-protocol.ts` 定义独立于页面 RPC 的内部消息。`BackgroundHostClient` 经 utility process 的父通道调用 `host.initialize`、`llm.configuration.load`、`llm.keys.execute`、`context.files.policy` 和 `context.assets.root`。Main 的 `createBackgroundHostServices` 复用现有 `LlmConfiguration` 与 `LlmKeyState` 实例；执行端 Key 端口可直接交给共享模型中间件。渠道快照按调用加载，初始化只返回应用数据根与运行目录。
+`electron/background-host-protocol.ts` 定义独立于页面 RPC 的内部消息。`BackgroundHostClient` 经 utility process 的父通道调用 `host.initialize`、`llm.configuration.load`、`llm.keys.execute`、`context.files.policy`、`context.assets.root` 和 `llm.proxy.resolve`。Main 的 `createBackgroundHostServices` 复用现有 `LlmConfiguration` 与 `LlmKeyState` 实例；执行端 Key 端口可直接交给共享模型中间件。渠道快照按调用加载，初始化只返回应用数据根与运行目录。
 
-运行时版本为 `0.4.0-node`。启用内部服务时，Worker 完成初始化后才允许报告 ready；生产启动沿用这一握手。内部 Key 操作限于选择、同步、成功和失败，回复只包含选择结果或不可用原因。完整状态投影继续由窗口现有订阅处理。页面 `background.call` 在 Main 层限定为两个公开诊断方法。
+运行时版本为 `0.5.0-node`。启用内部服务时，Worker 完成初始化后才允许报告 ready；生产启动沿用这一握手。内部 Key 操作限于选择、同步、成功和失败，回复只包含选择结果或不可用原因。完整状态投影继续由窗口现有订阅处理。页面 `background.call` 在 Main 层限定为两个公开诊断方法。
 
 两端各限制 32 个在途服务请求；Main 限额包括旧代次仍在收尾的操作。请求编号单调递增，Worker 代次和物理通道共同隔离回复。调用取消、超时和进程退出释放等待者，已接收的持久化事务继续完成。应用退出先关闭 Worker 请求入口，对已就绪实例发送 `shutdown`，等待 scope 与原生队列释放；默认 2 秒后仍未退出则终止进程，后续可升级到进程树清理。初始化中或失联的实例直接进入进程回收。内部已接收事务全部收尾后，再关闭渠道与 Key 所有者。宿主异常通过固定错误包络回复，避免异常正文携带凭据。
 
@@ -203,6 +203,16 @@ preload 使用 `contextIsolation: true`、`sandbox: true`、`nodeIntegration: fa
 `src/llm-apis/execution/modelRequestExecutor.ts` 与 `channelRequestExecutor.ts` 承接原模型中间件和虚拟渠道调度，Renderer 入口注入现有配置、Key 管理、适配器与 Inspector 服务。`adapters/openai/chat-executor.ts` 复用原 DTO 映射和共享 Provider Core，通过端口选择 Transport 和请求头模板解析。
 
 `electron/llm-transport.ts` 可由 Node 执行所有者独立持有，复用现有 HTTP 重定向、代理与文件展开服务，整条响应流保持取消和期限控制；`dispose()` 释放所属在途请求。共享响应 reader 在提前结束解码时关闭连接。Node 行为测试使用真实本地 HTTP/SSE 和附件字节；生产 Worker 的 Agent 服务接线仍在实施。
+
+## Worker 多协议模型服务
+
+`BackgroundModelServices` 在正式 Worker 初始化后创建；构造阶段保持轻量，`createScope` 才通过 Main 读取渠道快照。每个 scope 固定渠道 revision、请求头模板上下文、代理配置及 VCP 连接地址；模型与虚拟渠道调度复用 `modelRequestExecutor` / `channelRequestExecutor`，选钥和健康写入继续交给 Main 所有者。调用方可取得渠道快照副本，任务执行中的快照保持稳定，新 scope 观察更新后的渠道。
+
+`src/llm-apis/execution/chatAdapters.ts` 装配 OpenAI 兼容、Responses、Gemini、Claude、Cohere、Azure、DeepSeek 与 Vertex Google/Anthropic 聊天协议。Renderer 注册入口使用同一装配清单，原适配器的媒体、Embedding 和转写方法保留。协议 DTO 映射、工具/思考内容、端点、鉴权与高级参数继续使用原实现；传输和模板请求头通过端口注入。`llm-apis/types.ts` 与 `adapters/types.ts` 提供独立契约，原 `common.ts` / `adapters/index.ts` 保留兼容导出。
+
+每个模型 scope 持有自己的 Node HTTP/SSE 传输。系统代理解析通过内部 `llm.proxy.resolve` 调用 Main 的 Chromium 服务；该能力校验 HTTP(S) 地址及凭据字段，页面 RPC 继续使用诊断方法白名单。释放 scope 或关闭 Worker 会取消准备和在途请求，等待对应操作退出。共享中间件发出的上游中断请求由 scope 记录并收尾。
+
+Windows 独立 utility process 已完成 9 条本地 HTTP 协议路径，另覆盖 Main 配置/共享密钥轮询、模板请求头、代理服务、按需读取与在途 SSE 的正常退出。正式生产 Worker 已验证启动、跨窗口共享、刷新、心跳及崩溃重连。真实聊天任务、工具/审批、持久事件及媒体/Embedding/ASR 的 Worker 执行装配继续实施。
 
 ## Worker 上下文资源与当前文件策略
 

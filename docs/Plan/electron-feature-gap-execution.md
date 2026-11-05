@@ -374,6 +374,7 @@ LLM 流式搜索批次（2026-11-04）：
 - [x] Node 任务级附件字节、图片原生解码/缩放/编码及长图切片服务，共享切点和预算；应用级 Worker 正式装配继续接线。
 - [x] Worker 到 Main 的内部配置/执行期 Key 通道、生产初始化握手及跨代次事务排空；配置和密钥操作复用窗口侧应用所有者，真实任务装配继续接线。
 - [x] 正式 Worker 持有附件/图片/Token 上下文资源池，接通 Main 当前文件策略及既有资产根服务，scope 与原生队列支持正常退出释放；真实工具/审批与任务入口继续接线。
+- [x] Worker 任务级多协议聊天模型服务、独立类型契约与 Main 系统代理能力；沿用原渠道/Key/协议映射，真实任务入口继续接线。
 - [ ] 真实 Agent 生成链接管、持久 `SessionEvent`、订阅游标与增量重放、审批重连、全部窗口销毁后的任务延续及完成通知。
 - [ ] 后台运行时 macOS/Linux 真实生命周期验证。
 - [x] Windows 窗口关闭/销毁和应用退出快照、最小化状态及新进程恢复。
@@ -685,3 +686,16 @@ Worker 上下文资源、当前文件策略与资产根服务批次（2026-11-05
 - 最终 Windows 生产资源在项目 Dev Control 隔离实例完成 5 组检查：快速关闭落盘、同标签窗口重建、显式销毁、最大化恢复，以及隐藏主窗口退出和真实 Worker 结束。独立 Playwright Electron fixture 另完成 6 组：query-session-end 合成事件与继续请求、重复原生 app.quit、beforeunload 存储、同目录新进程精确恢复、session-end 合成事件与最小化快照、再次启动恢复最大化。系统会话事件采用合成触发，未执行系统注销或关机。
 - Dev Control 验收于北京时间 19:04:09–19:04:13 完成；最终宿主重打包后，独立进程验证于 19:05:55–19:06:06 完成。验收实例与记录的 Worker 均已退出，开发实例列表为空。
 - 证据位于忽略目录 `.tmp/electron-window-lifecycle/`：`related-tests.log`、`check-final.log`、`build-accepted.log`、`host-final.log`、`runtime-result.json`、`runtime-final.log`、`native-result.json`、`native-runtime-final.log` 和 `production-window.png`。初跑修正了验证脚本的窗口关闭等待、原生启动完成等待和缩放像素断言；最终行为检查使用修正后的夹具。
+
+
+Worker 多协议模型服务与共享契约批次（2026-11-05）：
+
+- 为 Responses、Gemini、Claude、Cohere 和 Vertex Google/Anthropic 抽取可注入传输/请求头的原聊天执行器；DeepSeek 参数归一化保持共享。`createChatAdapters` 统一装配这些协议及 OpenAI 兼容、Azure、DeepSeek，Renderer 注册入口同步复用，并保留原媒体、Embedding 和 ASR 方法。
+- 将原 `common.ts` 的请求/响应契约与通用常量迁到 `llm-apis/types.ts`，适配器接口迁到 `adapters/types.ts`；原出口保留兼容转发。共享模型中间件和协议映射通过独立契约进入 Node 类型检查，执行路径沿用原实现。
+- 新增 `BackgroundModelServices`。scope 按需读取 Main 渠道并固定 revision，固定调用方提供的模板上下文、代理和 VCP 地址，复用原模型/虚拟渠道中间件与 Main Key 端口。返回渠道副本，后续 scope 获取新配置；每个 scope 独立持有传输、请求和取消，释放/退出排空准备及在途操作。正式 Worker 在初始化后持有服务，版本为 `0.5.0-node`，初始化期间仍保持零渠道读取。
+- 新增内部 `llm.proxy.resolve`，由 Main 校验 HTTP(S) 地址后调用实际 Chromium 代理解析；沿用内部通道身份、容量和代次约束，页面 RPC 保持诊断白名单。上游主动停止请求继续由共享模型中间件发起，并纳入所属 scope 的网络资源收尾。
+- 新增 14 项行为回归：9 个协议映射/真实 Node HTTP、配置和请求头快照、流式取消与释放、准备期退出、Responses 主备回退、Main 代理能力和 URL 校验；相关宿主测试 47 项、前端协议/渠道/续写测试 72 项通过。Electron/前端类型检查、平台隔离及完整 Electron/Vite/native release 构建通过；构建于北京时间 19:28:51 完成。
+- 独立真实 utility process 于北京时间 19:33:16 完成 9 条协议请求及 6 组检查：真实 Main 配置、与窗口入口共用的 Key 轮询、请求头模板、Main Chromium 代理解析、初始化期间零渠道读取、取消在途 SSE 后以 0 正常退出且强制 kill 次数为 0。
+- 最终正式生产资源于北京时间 19:35:14–19:35:21 通过 5 组 Dev Control 检查：初始化与诊断、多窗口共享及 6 个内部方法拒绝页面转发、刷新和关闭附属窗口、持续心跳、结束正式 Worker 后新 PID/代次恢复。启动诊断为空；应用及记录的 utility 进程均已退出，开发实例列表为空。
+- 证据位于忽略目录 `.tmp/electron-worker-models/`：`node-tests.log`、`frontend-tests.log`、`frontend-check.log`、`build.log`、`utility-result.json`、`runtime-result.json`、`runtime.log` 和 `diagnostics.json`。早期主备夹具按当前同协议约束修正；utility 构建夹具调整为 CommonJS 异步入口后完成验证。
+- 生产聊天入口继续由 Renderer 持有；独立 fixture 的模型执行证明与正式 Worker 生命周期证明分别记录。真实工具/审批、PDF/Office/转写与 Recall/宿主宏、媒体/Embedding/ASR、响应/会话持久事件和全部窗口销毁后的任务存续继续接续。

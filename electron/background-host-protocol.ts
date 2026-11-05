@@ -20,6 +20,7 @@ export interface BackgroundHostServices {
   };
   "context.files.policy": { params: undefined; result: ContextFilePolicy };
   "context.assets.root": { params: undefined; result: string };
+  "llm.proxy.resolve": { params: { url: string }; result: string };
   "llm.configuration.load": { params: undefined; result: LlmProfilesSnapshot };
   "llm.keys.execute": {
     params: ExecutionKeyCommand;

@@ -21,6 +21,7 @@ import {
 import type { BackgroundJsRuntimeResponse } from "../src/background-runtime/protocol";
 
 import { BackgroundContextServices } from "./background-context-services";
+import { BackgroundModelServices } from "./background-model-services";
 import { BackgroundHostClient } from "./background-host-client";
 
 const parent = process.parentPort;
@@ -36,6 +37,16 @@ const runtimeInfo = {
 const send = (message: BackgroundWorkerMessage) => parent.postMessage(message);
 const host = new BackgroundHostClient((message) => send(message));
 let contexts: BackgroundContextServices | undefined;
+let models: BackgroundModelServices | undefined;
+// Log static diagnostic messages; credential-bearing provider details stay within the task.
+const log = (message: string) => console.warn("[background-model]", message);
+const modelDiagnostics = {
+  logger: { debug: log, info: log, warn: log },
+  errors: {
+    error: (_error: unknown, message: string) => log(message),
+    warn: (_error: unknown, message: string) => log(message),
+  },
+};
 let closing = false;
 process.once("exit", () => host.close());
 async function shutdown() {
@@ -44,7 +55,7 @@ async function shutdown() {
   clearInterval(heartbeat);
   host.close();
   try {
-    await contexts?.shutdown();
+    await Promise.all([contexts?.shutdown(), models?.shutdown()]);
     process.exit(0);
   } catch {
     process.exit(1);
@@ -93,6 +104,7 @@ void host
   .then((environment) => {
     if (closing) return;
     contexts = new BackgroundContextServices(host, environment);
+    models = new BackgroundModelServices(host, modelDiagnostics);
     send({ type: "ready", runtimeVersion: BACKGROUND_RUNTIME_VERSION });
   })
   .catch(() => {

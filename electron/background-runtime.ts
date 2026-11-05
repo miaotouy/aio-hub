@@ -245,6 +245,7 @@ export class BackgroundRuntime {
       ![
         "host.initialize",
         "llm.configuration.load",
+        "llm.proxy.resolve",
         "context.files.policy",
         "context.assets.root",
         "llm.keys.execute",

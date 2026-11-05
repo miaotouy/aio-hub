@@ -158,6 +158,7 @@ describe("Main-owned services for the background utility process", () => {
     for (const method of [
       "host.initialize",
       "llm.configuration.load",
+      "llm.proxy.resolve",
       "llm.keys.execute",
       "unknown",
     ])
@@ -168,6 +169,35 @@ describe("Main-owned services for the background utility process", () => {
         })
       ).rejects.toMatchObject({ code: "METHOD_NOT_IMPLEMENTED" });
     expect(worker.replies).toHaveLength(before);
+  });
+  it("resolves system proxy through the Main capability and validates URLs before dispatch", async () => {
+    const resolveProxy = vi.fn(async () => "PROXY 127.0.0.1:7897");
+    const services = createBackgroundHostServices({
+      environment,
+      configuration: {
+        load: async () => ({ profiles: [], revision: "fixture" }),
+      },
+      keys: { run: async () => ({}) },
+      resolveProxy,
+    });
+    const { start } = setup(services);
+    const worker = await start();
+    expect(
+      await worker.client.call("llm.proxy.resolve", {
+        url: "https://example.invalid/model",
+      })
+    ).toBe("PROXY 127.0.0.1:7897");
+    await expect(
+      worker.client.call("llm.proxy.resolve", { url: "file:///C:/fixture" })
+    ).rejects.toMatchObject({ code: "HOST_SERVICE_FAILED" });
+    await expect(
+      worker.client.call("llm.proxy.resolve", {
+        url: "https://user:secret@example.invalid",
+      })
+    ).rejects.toMatchObject({ code: "HOST_SERVICE_FAILED" });
+    expect(resolveProxy.mock.calls).toEqual([
+      ["https://example.invalid/model"],
+    ]);
   });
   it("requires initialization before readiness and rejects pre-ready credential requests", async () => {
     const services = vi.fn(async () => environment);

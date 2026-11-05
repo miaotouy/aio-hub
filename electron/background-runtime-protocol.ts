@@ -22,7 +22,7 @@ import type {
   HostServiceResponse,
 } from "./background-host-protocol";
 
-export const BACKGROUND_RUNTIME_VERSION = "0.4.0-node";
+export const BACKGROUND_RUNTIME_VERSION = "0.5.0-node";
 export const BACKGROUND_HEARTBEAT_INTERVAL_MS = 5_000;
 export type BackgroundWorkerMessage =
   | { type: "ready"; runtimeVersion: string }

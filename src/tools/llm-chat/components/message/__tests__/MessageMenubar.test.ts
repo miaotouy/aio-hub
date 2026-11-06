@@ -6,7 +6,11 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { defineComponent, h, KeepAlive, nextTick, ref } from "vue";
 import MessageMenubar from "../MessageMenubar.vue";
 import { useChatSettings } from "../../../composables/settings/useChatSettings";
-import type { ChatMessageNode } from "../../../types";
+import type {
+  ChatMessageNode,
+  ChatSessionDetail,
+  ChatSessionIndex,
+} from "../../../types";
 
 vi.mock("../../../composables/settings/useChatSettings", async () => {
   const { ref } = await import("vue");
@@ -103,8 +107,24 @@ function mountMenubar(pinned = false, compact = false, withSession = false) {
                   currentSiblingIndex: 0,
                   ...(withSession
                     ? {
-                        sessionDetail: { id: "session" },
-                        sessionIndex: { id: "session" },
+                        sessionDetail: {
+                          id: "session",
+                          updatedAt: "2026-01-01T00:00:00.000Z",
+                          nodes: {
+                            [currentMessage.value.id]: currentMessage.value,
+                          },
+                          rootNodeId: currentMessage.value.id,
+                          activeLeafId: currentMessage.value.id,
+                          history: [],
+                          historyIndex: -1,
+                        } satisfies ChatSessionDetail,
+                        sessionIndex: {
+                          id: "session",
+                          name: "Example session",
+                          messageCount: 1,
+                          createdAt: "2026-01-01T00:00:00.000Z",
+                          updatedAt: "2026-01-01T00:00:00.000Z",
+                        } satisfies ChatSessionIndex,
                       }
                     : {}),
                 })

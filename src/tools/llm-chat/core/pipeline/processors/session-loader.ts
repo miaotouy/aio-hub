@@ -355,7 +355,10 @@ export function createSessionLoader({ logger }: { logger: ContextLogger }) {
         messages.push(processableMessage);
       }
 
-      if (context.isVcpTextChannel) {
+      if (
+        context.isVcpTextChannel &&
+        context.settings.uiPreferences?.mergeVcpHistory !== false
+      ) {
         messages = mergeVcpResponseHistory(messages, context.detail.nodes);
       }
 

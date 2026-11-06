@@ -475,6 +475,32 @@ describe("VCP history send projection", () => {
     }
   );
 
+  it("can keep split VCP history separate when replay merge is disabled", async () => {
+    const nodes = {
+      root: node("root", null, "system", "preset", ["u"]),
+      u: node("u", "root", "user", "question", ["a"]),
+      a: mark(node("a", "u", "assistant", "request", ["t"]), "request-1"),
+      t: mark(node("t", "a", "tool", "result", ["b"]), "request-1"),
+      b: mark(node("b", "t", "assistant", "answer"), "request-1"),
+    };
+    const context = createContext(session(nodes, "b"));
+    Object.assign(context, {
+      isVcpTextChannel: true,
+      settings: { uiPreferences: { mergeVcpHistory: false } },
+    });
+
+    await sessionLoader.execute(context);
+
+    expect(
+      context.messages.map((message) => [message.role, message.content])
+    ).toEqual([
+      ["user", "question"],
+      ["assistant", "request"],
+      ["user", "result"],
+      ["assistant", "answer"],
+    ]);
+  });
+
   it.each(["interrupt", ""])(
     "respects user ancestry and request boundaries with user text=%j",
     async (userText) => {

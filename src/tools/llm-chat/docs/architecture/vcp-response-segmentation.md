@@ -40,7 +40,7 @@ VCP 文本渠道的流式 Chat Completions 请求，可以在一次 HTTP 响应�
 
 ## 历史发送与预览
 
-- 执行器和上下文预览沿用当前目标渠道的 `resolveChannelToolHandling()` 结果；合并独立于「VCP 消息拆分」开关，关闭开关后已有的新拆分历史仍可合回。
+- 执行器和上下文预览沿用当前目标渠道的 `resolveChannelToolHandling()` 结果；「VCP 历史发送合并」独立于「VCP 消息拆分」开关，默认开启，可在聊天通用设置中关闭。关闭后已有的新拆分历史也按原节点逐条发送。
 - 新段的 `metadata.vcpResponse.contextReplay` 保存展示分段之外的 `prefix / suffix`，用于保留旧式角色控制 chunk、分隔换行及段边界空白；普通正文直接复用节点内容。工具数据内的角色标记按原样保留。
 - `session-loader` 在历史投影中调用 `mergeVcpResponseHistory()`，按当前分支顺序将相邻、同 `requestId` 且树上直接相连的段合成一条 assistant。用户消息、其它请求、压缩摘要或缺少回放边界的旧段都会结束当前合并组；被过滤的空用户节点仍通过父节点关系隔开两组。
 - 合并正文顺序为各段 `prefix + content + suffix`，不插入额外分隔符。独立推理和 provider reasoning replay state 保留在原节点供展示，合并后的 VCP 请求只提交正文。后续配置的上下文处理仍照常执行。

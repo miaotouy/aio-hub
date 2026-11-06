@@ -135,6 +135,30 @@ ${fence}`);
     expect(findToolRequests(ast)).toHaveLength(0);
   });
 
+  it.each([false, true])(
+    "keeps quoted request markers inside a standard argument literal (fuzzy: %s)",
+    (fuzzy) => {
+      const start = "「始」";
+      const end = "「末」";
+      const request = `<<<[TOOL_REQUEST]>>>\ntool_name:${start}DailyNote${end},\nContent:${start}Example says \`<<<[TOOL_REQUEST]>>>\` should stay literal.${end}\n<<<[END_TOOL_REQUEST]>>>`;
+      const ast = parse(request, fuzzy);
+
+      expect(findToolRequests(ast)).toMatchObject([
+        {
+          props: {
+            tool_name: "DailyNote",
+            args: {
+              Content:
+                "Example says `<<<[TOOL_REQUEST]>>>` should stay literal.",
+            },
+            raw: request,
+            closed: true,
+          },
+        },
+      ]);
+    }
+  );
+
   it("hides duplicate tool summary when a matching result exists in the same role fence", () => {
     const ast = parse(`
 <<<[ROLE_DIVIDE_USER]>>>

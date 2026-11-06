@@ -349,7 +349,7 @@ flowchart TD
 - **自动预览 (Auto-Preview)**: 在进入审批挂起状态前，执行器会尝试调用工具的 `onToolCallPreview` 钩子，允许工具（如 Canvas）将数据写入内存缓冲区以供用户即时预览效果。
 - **双重安全校验**: 即使方法存在于工具实例上，也必须在 [`getMetadata()`](core/executor.ts:119) 中标记 `agentCallable: true` 才允许执行，防止 LLM 调用非授权方法。
 - **超时与取消**: 本地和分布式执行通过 `AbortController` 传播取消信号，超时必须先中止底层任务再返回错误；完整约束见第 10 节。
-- **结果序列化**: 返回值如果不是字符串，自动 `JSON.stringify`。工具可返回标准 `ToolMethodResult` 信封，把面向 LLM 的 `result` 与写入消息节点的 `executionMetadata` 分开；带 `code` 的异常会记录为结构化 `failureType`。
+- **结果序列化**: 字符串直接作为结果；标准 `content` 文本块按顺序提取正文，普通对象继续 `JSON.stringify`。业务结果显式返回 `success: false` 时记录为失败。工具可返回标准 `ToolMethodResult` 信封，把面向 LLM 的 `result` 与写入消息节点的 `executionMetadata` 分开；带 `code` 的异常会记录为结构化 `failureType`。
 
 ### 4.6. 引擎 (`core/engine.ts`)
 

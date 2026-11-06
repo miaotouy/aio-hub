@@ -27,6 +27,7 @@ import type {
   ToolResultWithLocalMedia,
 } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
+import { stringifyToolResult } from "@/utils/toolResult";
 import { taskManager } from "./async-task";
 
 const logger = createModuleLogger("tool-calling/executor");
@@ -443,17 +444,19 @@ async function executeSingleRequest(
       localMedia ??= resultMedia;
       resultData = textResult;
     }
-    const result =
-      typeof resultData === "string"
-        ? resultData
-        : JSON.stringify(resultData ?? null);
+    const result = stringifyToolResult(resultData);
 
-    options.onStatusChange?.(request.requestId, "completed");
+    const failed =
+      resultData !== null &&
+      typeof resultData === "object" &&
+      "success" in resultData &&
+      resultData.success === false;
+    options.onStatusChange?.(request.requestId, failed ? "error" : "completed");
 
     return {
       requestId: request.requestId,
       toolName: request.toolName,
-      status: "success",
+      status: failed ? "error" : "success",
       result,
       durationMs,
       ...(localMedia?.length ? { localMedia } : {}),

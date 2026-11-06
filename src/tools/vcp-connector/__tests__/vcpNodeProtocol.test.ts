@@ -1,3 +1,4 @@
+import { presentFileOperationResult } from "@/tools/aio-file-operator/utils/agentResult";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -213,13 +214,159 @@ describe("VcpNodeProtocol distributed tool execution", () => {
         data: expect.objectContaining({
           request_id: "req-batch",
           status: "success",
-          result: [
-            { path: "G:/work/one.md", requestId: "req-batch_1" },
-            { path: "G:/work/two.md", requestId: "req-batch_2" },
-          ],
+          result: {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  path: "G:/work/one.md",
+                  requestId: "req-batch_1",
+                }),
+              },
+              {
+                type: "text",
+                text: JSON.stringify({
+                  path: "G:/work/two.md",
+                  requestId: "req-batch_2",
+                }),
+              },
+            ],
+          },
         }),
       })
     );
+  });
+
+  // Protect the consumer contract: VCP must receive typed text blocks for pure text and mixed batches.
+  it("文件目录与读取批次按顺序回传可读文本块", async () => {
+    registry.getMetadata.mockReturnValue({
+      methods: [
+        { name: "list_directory", agentCallable: true },
+        { name: "read_file", agentCallable: true },
+      ],
+    });
+    const directoryResult = presentFileOperationResult({
+      success: true,
+      message: "目录 G:/work（1 项）",
+      data: {
+        entries: [
+          {
+            name: "notes.md",
+            path: "G:/work/notes.md",
+            size: 2048,
+            isDirectory: false,
+            modified: null,
+            created: null,
+          },
+        ],
+      },
+    });
+    const body = '  # 内容\r\npath="G:\\work"\r\n';
+    const readResult = presentFileOperationResult({
+      success: true,
+      message: "读取 G:/work/notes.md",
+      data: { content: body, size: 2048 },
+    });
+    Object.assign(registry, {
+      list_directory: vi.fn().mockResolvedValue(directoryResult),
+    });
+    registry.read_file.mockResolvedValue(readResult);
+    const sendJson = vi.fn();
+    const protocol = new VcpNodeProtocol(sendJson);
+    await protocol.handleExecuteTool({
+      requestId: "readable-batch",
+      toolName: "aio-file-operator",
+      toolArgs: {
+        command1: "list_directory",
+        path1: "G:/work",
+        command2: "read_file",
+        path2: "G:/work/notes.md",
+      },
+    });
+    expect(sendJson.mock.calls[0][0].data.result.content).toEqual([
+      ...directoryResult.content!,
+      ...readResult.content!,
+    ]);
+    const [directory, file] = sendJson.mock.calls[0][0].data.result.content;
+    expect(directory.text).toContain("| notes.md | 文件 | 2 KB |");
+    expect(file.text.endsWith(body)).toBe(true);
+  });
+
+  it("单次文件读取避免 data.content 遮蔽顶层文本内容块", async () => {
+    const body = "  第一行\r\nC:\\work\r\n";
+    const result = presentFileOperationResult({
+      success: true,
+      message: "已读取",
+      data: { content: body, size: 32 },
+    });
+    registry.read_file.mockResolvedValue(result);
+    const sendJson = vi.fn();
+    const protocol = new VcpNodeProtocol(sendJson);
+    await protocol.handleExecuteTool({
+      requestId: "single-text",
+      toolName: "aio-file-operator",
+      toolArgs: { command: "read_file", path: "G:/work/a.md" },
+    });
+    const wire = sendJson.mock.calls[0][0].data.result;
+    // Mirror the VCP consumer's documented content selection, not internal DTO fields.
+    const selected = wire.data?.content || wire.content;
+    expect(selected).toEqual(result.content);
+    expect(selected[0].text.endsWith(body)).toBe(true);
+  });
+
+  it("纯文本信封解包后回传正文，业务失败保留到批次状态", async () => {
+    registry.read_file.mockResolvedValueOnce({
+      result: "第一行\n第二行",
+      executionMetadata: { auditId: "local-only" },
+    });
+    registry.read_file.mockResolvedValueOnce(
+      presentFileOperationResult({
+        success: false,
+        message: "文件不存在：G:/work/missing.md",
+      })
+    );
+    const sendJson = vi.fn();
+    const protocol = new VcpNodeProtocol(sendJson);
+    await protocol.handleExecuteTool({
+      requestId: "wrapped-text",
+      toolName: "aio-file-operator",
+      toolArgs: {
+        command1: "read_file",
+        path1: "G:/work/notes.md",
+        command2: "read_file",
+        path2: "G:/work/missing.md",
+      },
+    });
+    expect(sendJson.mock.calls[0][0].data.result).toEqual({
+      success: false,
+      content: [
+        { type: "text", text: "第一行\n第二行" },
+        { type: "text", text: "操作失败：文件不存在：G:/work/missing.md" },
+      ],
+    });
+  });
+
+  it("可读媒体结果复用文本块并保留一次安全传输", async () => {
+    const media = mockMedia();
+    const result = presentFileOperationResult({
+      success: true,
+      message: "已读取图片",
+      data: { mimeType: "image/png", size: 2 },
+      localMedia: [media],
+    });
+    registry.read_file.mockResolvedValue(result);
+    const sendJson = vi.fn();
+    const protocol = new VcpNodeProtocol(sendJson);
+    await protocol.handleExecuteTool({
+      requestId: "readable-media",
+      toolName: "aio-file-operator",
+      toolArgs: { command: "read_file", path: media.path },
+    });
+    expect(readFileForExternalTransfer).toHaveBeenCalledTimes(1);
+    expect(sendJson.mock.calls[0][0].data.result.content).toEqual([
+      ...result.content!,
+      { type: "image_url", image_url: { url: "data:image/png;base64,b2s=" } },
+    ]);
   });
 
   // 保护分布式入口的公开权限契约：被拦截/未授权的调用不得执行工具方法。
@@ -322,7 +469,10 @@ describe("VcpNodeProtocol distributed tool execution", () => {
     }
   });
 
-  function mockMedia(type = "image", mimeType = "image/png") {
+  function mockMedia(
+    type: "image" | "audio" | "video" = "image",
+    mimeType = "image/png"
+  ) {
     const media = {
       id: "media-1",
       type,
@@ -356,7 +506,7 @@ describe("VcpNodeProtocol distributed tool execution", () => {
     ["image", "image/png"],
     ["audio", "audio/wav"],
     ["video", "video/mp4"],
-  ])(
+  ] as const)(
     "一次分布式读取返回 %s 媒体字节供 VCP 模型消费",
     async (type, mimeType) => {
       const media = mockMedia(type, mimeType);

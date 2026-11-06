@@ -93,7 +93,7 @@ async function appendThrough(source: "vcp" | "local") {
     ],
     { config: toolConfig, onBeforeExecute: state.approve }
   );
-  return JSON.parse(result.result);
+  return { success: result.status === "success", message: result.result };
 }
 
 describe("文件工具的执行授权与 VCP 参数适配", () => {
@@ -181,17 +181,10 @@ describe("文件工具的执行授权与 VCP 参数适配", () => {
         endLine: "2",
       },
     });
-    expect(send.mock.calls[0][0].data.result).toMatchObject({
-      success: true,
-      data: {
-        content: "two\n",
-        lineRange: {
-          startLine: 2,
-          endLine: 2,
-          returnedLines: 1,
-          totalLines: 2,
-        },
-      },
-    });
+    const result = send.mock.calls[0][0].data.result;
+    expect(result.success).toBe(true);
+    expect(result.content[0].type).toBe("text");
+    expect(result.content[0].text).toContain("2–2 / 共 2 行");
+    expect(result.content[0].text.endsWith("\n\ntwo\n")).toBe(true);
   });
 });

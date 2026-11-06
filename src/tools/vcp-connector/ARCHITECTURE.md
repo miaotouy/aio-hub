@@ -103,7 +103,8 @@ AIO 暴露给 VCP 主服务器的分布式工具 manifest 会在 `communication.
 工具的普通对象结果与 `ToolMethodResult` 信封均可携带 `localMedia`。本地聊天通过发送管道消费该引用；分布式节点在 `execute_tool` 的同一次执行内完成安全读取，再返回 `result.content`，使 VCP 服务端下一轮请求直接包含媒体。
 
 - 文本使用 `{ type: "text", text }`，媒体使用 `{ type: "image_url", image_url: { url: "data:<mime>;base64,..." } }`。VCP 的工具结果格式化器读取顶层 `content`；媒体处理管道通过 data URL 的 MIME 识别图片、音频和视频。模型输入支持与 VCP 媒体转换设置继续适用。
-- 混合批量调用按执行顺序把文本和媒体平铺到顶层 `content`；纯文本批次沿用原有数组返回。原始媒体引用从传输结果中移除。
+- 单次、纯文本批次和混合媒体批次统一返回顶层 `content` 内容块；批次按执行顺序平铺文本和媒体。工具自带的合法内容块直接复用；字符串与普通对象补为 `text` 块，业务对象数组作为文本数据序列化。`ToolMethodResult` 在文本与媒体两类调用中均解包，原始媒体引用从传输结果中移除。工具已提供可读内容块时，领域 `data` 留在工具与审计中，避免 `data.content` 遮蔽顶层内容块并重复传输正文。
+- 批次中包含显式 `success: false` 的业务结果时，聚合结果保留失败标记。
 - 媒体读取与 `internal_request_file` 共用安全外传入口，应用 `externalFileTransferEnabled`、限流、沙箱、当前路径规则、审批、大小限制和来源审计。引用中的本地审批标记与外传授权独立，审批区仍需确认外传。
 - 安全读取与结果转换计入分布式执行超时，取消后停止后续读取；文件不可访问、权限拒绝或传输关闭时回传明确错误。
 

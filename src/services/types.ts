@@ -311,6 +311,11 @@ export interface ToolContext {
   isAsync: boolean;
 }
 
+/** 工具输出中的可读文本与 VCP 媒体内容块。 */
+export type ToolResultContent =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
 /** 工具结果携带的本地媒体引用，供发送管道按需读取。 */
 export interface ToolResultWithLocalMedia {
   localMedia?: LocalMediaReference[];

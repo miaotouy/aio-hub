@@ -114,6 +114,8 @@ export interface FileOperationResult extends ToolResultWithLocalMedia {
   success: boolean;
   message: string;
   data?: any;
+  /** Agent 出口提供可读文本；动作层与审计保留结构化数据。 */
+  content?: { type: "text"; text: string }[];
 }
 
 /** 操作日志条目 */

@@ -23,6 +23,7 @@ import { markRaw } from "vue";
 import { FileCog } from "lucide-vue-next";
 import * as actions from "./actions";
 import { parseAgentBoolean } from "@/utils/agentArgs";
+import { presentFileOperationResult } from "./utils/agentResult";
 
 export const toolConfig: ToolConfig = {
   name: "本地文件操作器",
@@ -424,12 +425,14 @@ export class AioFileOperatorRegistry implements ToolRegistry {
 
   public async get_working_directory() {
     const path = await actions.getWorkingDirectory();
-    return path
-      ? { success: true, message: "已获取任务工作目录", data: { path } }
-      : {
-          success: false,
-          message: "工作目录暂不可用，请检查应用数据目录的写入权限。",
-        };
+    return presentFileOperationResult(
+      path
+        ? { success: true, message: "已获取任务工作目录", data: { path } }
+        : {
+            success: false,
+            message: "工作目录暂不可用，请检查应用数据目录的写入权限。",
+          }
+    );
   }
 
   public async read_file(args: {
@@ -437,7 +440,9 @@ export class AioFileOperatorRegistry implements ToolRegistry {
     startLine?: number;
     endLine?: number;
   }) {
-    return await actions.readFile(args.path, args.startLine, args.endLine);
+    return presentFileOperationResult(
+      await actions.readFile(args.path, args.startLine, args.endLine)
+    );
   }
 
   public async write_file(
@@ -449,12 +454,14 @@ export class AioFileOperatorRegistry implements ToolRegistry {
     context?: ToolContext
   ) {
     const allowOverwrite = parseAgentBoolean(args.allowOverwrite);
-    return await actions.writeFile(
-      args.path,
-      args.content,
-      allowOverwrite,
-      context?.signal,
-      context?.securityApprovalGranted
+    return presentFileOperationResult(
+      await actions.writeFile(
+        args.path,
+        args.content,
+        allowOverwrite,
+        context?.signal,
+        context?.securityApprovalGranted
+      )
     );
   }
 
@@ -462,24 +469,28 @@ export class AioFileOperatorRegistry implements ToolRegistry {
     args: { path: string; content: string },
     context?: ToolContext
   ) {
-    return await actions.appendFile(
-      args.path,
-      args.content,
-      context?.signal,
-      context?.securityApprovalGranted
+    return presentFileOperationResult(
+      await actions.appendFile(
+        args.path,
+        args.content,
+        context?.signal,
+        context?.securityApprovalGranted
+      )
     );
   }
 
   public async delete_file(args: { path: string }, context?: ToolContext) {
-    return await actions.deleteFile(
-      args.path,
-      context?.signal,
-      context?.securityApprovalGranted
+    return presentFileOperationResult(
+      await actions.deleteFile(
+        args.path,
+        context?.signal,
+        context?.securityApprovalGranted
+      )
     );
   }
 
   public async list_directory(args: { path: string }) {
-    return await actions.listDirectory(args.path);
+    return presentFileOperationResult(await actions.listDirectory(args.path));
   }
 
   public async apply_diff(
@@ -491,26 +502,30 @@ export class AioFileOperatorRegistry implements ToolRegistry {
     },
     context?: ToolContext
   ) {
-    return await actions.applyDiff(
-      args.path,
-      args.search,
-      args.replace,
-      args.startLine,
-      context?.signal,
-      context?.securityApprovalGranted
+    return presentFileOperationResult(
+      await actions.applyDiff(
+        args.path,
+        args.search,
+        args.replace,
+        args.startLine,
+        context?.signal,
+        context?.securityApprovalGranted
+      )
     );
   }
 
   public async create_directory(args: { path: string }, context?: ToolContext) {
-    return await actions.createDirectory(
-      args.path,
-      context?.signal,
-      context?.securityApprovalGranted
+    return presentFileOperationResult(
+      await actions.createDirectory(
+        args.path,
+        context?.signal,
+        context?.securityApprovalGranted
+      )
     );
   }
 
   public async path_exists(args: { path: string }) {
-    return await actions.pathExists(args.path);
+    return presentFileOperationResult(await actions.pathExists(args.path));
   }
 
   public async copy_file(
@@ -522,12 +537,14 @@ export class AioFileOperatorRegistry implements ToolRegistry {
     context?: ToolContext
   ) {
     const allowOverwrite = parseAgentBoolean(args.allowOverwrite);
-    return await actions.copyFile(
-      args.sourcePath,
-      args.targetPath,
-      allowOverwrite,
-      context?.signal,
-      context?.securityApprovalGranted
+    return presentFileOperationResult(
+      await actions.copyFile(
+        args.sourcePath,
+        args.targetPath,
+        allowOverwrite,
+        context?.signal,
+        context?.securityApprovalGranted
+      )
     );
   }
 
@@ -540,17 +557,19 @@ export class AioFileOperatorRegistry implements ToolRegistry {
     context?: ToolContext
   ) {
     const allowOverwrite = parseAgentBoolean(args.allowOverwrite);
-    return await actions.moveFile(
-      args.sourcePath,
-      args.targetPath,
-      allowOverwrite,
-      context?.signal,
-      context?.securityApprovalGranted
+    return presentFileOperationResult(
+      await actions.moveFile(
+        args.sourcePath,
+        args.targetPath,
+        allowOverwrite,
+        context?.signal,
+        context?.securityApprovalGranted
+      )
     );
   }
 
   public async get_file_info(args: { path: string }) {
-    return await actions.getFileInfo(args.path);
+    return presentFileOperationResult(await actions.getFileInfo(args.path));
   }
 
   public async search_files(args: {
@@ -560,11 +579,14 @@ export class AioFileOperatorRegistry implements ToolRegistry {
     maxResults?: number;
   }) {
     const recursive = parseAgentBoolean(args.recursive);
-    return await actions.searchFiles(
-      args.directoryPath,
-      args.pattern,
-      recursive,
-      args.maxResults
+    return presentFileOperationResult(
+      await actions.searchFiles(
+        args.directoryPath,
+        args.pattern,
+        recursive,
+        args.maxResults
+      ),
+      { directoryPath: args.directoryPath }
     );
   }
 }

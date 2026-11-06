@@ -1,6 +1,6 @@
 # Aio File Operator: 架构与开发者指南
 
-> 更新日期：2026-11-03
+> 更新日期：2026-11-06
 
 本文档描述 `aio-file-operator` 的模块定位、调用链、安全边界和维护要点。该工具面向 Agent 暴露受控的本地文件读写能力，同时提供可视化配置与审计日志。
 
@@ -31,6 +31,7 @@ src/tools/aio-file-operator/
 ├── composables/
 │   └── useFileOperator.ts               # UI 状态编排、配置保存、VCP 分布式状态显示
 ├── utils/
+│   ├── agentResult.ts                   # Agent 文本结果与内容块
 │   ├── lineEnding.ts                    # apply_diff 的换行符归一化/还原
 │   └── security.ts                      # 路径沙箱与安全策略判断
 └── __tests__/
@@ -117,6 +118,16 @@ graph TB
 | `move_file`             | 移动/重命名文件/目录                      | 双路径沙箱、覆盖策略、跨盘回退       |
 | `get_file_info`         | 查询文件/目录元数据                       | 路径沙箱、不读取内容                 |
 | `search_files`          | 按通配符/子串递归搜索文件名               | 路径沙箱、结果数上限（≤1000）        |
+
+### 4.2. Agent 结果输出
+
+动作层与审计日志使用 `FileOperationResult` 的 `success / message / data` 结构。Registry 的所有 Agent 方法通过 `utils/agentResult.ts` 添加顶层 `content: [{ type: "text", text }]`，供本地执行器和 VCP 服务端消费：
+
+- 目录结果整理为名称、类型、文件大小与修改时间表格；搜索结果带搜索目录和命中项相对路径。
+- 文本与文档读取在文件说明、大小和可选行范围之后直接附加正文，保留正文的空白、引号、反斜杠与换行符。
+- 元数据与任务工作目录使用可读字段；写入、追加、复制、移动、删除等返回执行说明，Diff 保留警告。
+- 媒体结果附带类型与大小说明，`localMedia` 继续由本地发送管道或分布式安全外传入口处理。
+- 本地执行器读取文本内容块，并将业务结果的 `success: false` 标为失败；VCP 单次与批量结果统一使用合法内容块。
 
 ## 5. 数据流
 
@@ -346,7 +357,7 @@ VCP 分布式调用由节点协议层在本次执行内消费 `localMedia`，通
 
 | 类型                        | 用途                                                                                   |
 | --------------------------- | -------------------------------------------------------------------------------------- |
-| `FileOperationResult`       | 所有 Agent 方法统一返回结构：`success`、`message`、可选 `data` 和本地媒体 `localMedia` |
+| `FileOperationResult`       | Agent 方法保留 `success`、`message`、可选 `data` 与 `localMedia`，并提供可读文本 `content` |
 | `FileEntry`                 | `list_directory` 返回的文件/目录条目                                                   |
 | `OperationLogEntry`         | 审计日志条目                                                                           |
 | `SecurityRule`              | 死区/审批区规则                                                                        |
@@ -386,7 +397,6 @@ Rust 的 `security_path_tests` 与 `agent_security::tests` 覆盖符号链接后
 - **读取类型扩展**：可补充 Markdown 表格、HTML、RTF 等格式的专用提取器。
 - **更强的审计能力**：可增加按方法/路径过滤、导出日志、展示审批记录等能力。
 - **后端级沙箱**：当前沙箱主要在前端工具层与 Rust 基础安全路径解析层协同校验；如未来暴露给非 UI 的裸进程入口，可考虑将整套策略配置进一步下沉至纯 Rust 沙箱守护层。
-
 
 ## Electron 后台上下文策略读取（2026-11-05）
 

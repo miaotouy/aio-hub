@@ -1904,11 +1904,9 @@ describe("AioFileOperator Registry", () => {
           size: 3,
         },
       ]);
-      expect(JSON.parse(result.result)).toMatchObject({
-        success: true,
-        data: { mimeType: "image/png", size: 3 },
-      });
-      expect(JSON.parse(result.result).localMedia).toBeUndefined();
+      expect(result.result).toContain("C:/test/photo.png");
+      expect(result.result).toContain("image/png");
+      expect(result.result).toContain("3 B");
     });
 
     it("白名单模式 + 路径不在白名单 → executor 拦截并返回 denied", async () => {
@@ -1947,7 +1945,8 @@ describe("AioFileOperator Registry", () => {
             modified: null,
             created: null,
           };
-        if (cmd === "read_text_file_force") return "safe content";
+        if (cmd === "read_text_file_force")
+          return '  # safe content\r\npath="C:\\Safe"\r\n';
         return null;
       });
 
@@ -1970,7 +1969,10 @@ describe("AioFileOperator Registry", () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].status).toBe("success");
-      expect(JSON.parse(results[0].result).data.content).toBe("safe content");
+      expect(results[0].result).toContain("C:/Safe/file.txt");
+      expect(
+        results[0].result.endsWith('  # safe content\r\npath="C:\\Safe"\r\n')
+      ).toBe(true);
     });
 
     it("黑名单模式 + 路径匹配死区 → executor 拦截并返回 denied", async () => {

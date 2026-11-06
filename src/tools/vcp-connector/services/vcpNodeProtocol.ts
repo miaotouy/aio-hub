@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { createModuleLogger } from "@/utils/logger";
+import { getToolResultContent, stringifyToolResult } from "@/utils/toolResult";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { toolRegistryManager } from "@/services/registry";
 import { useVcpDistributedStore } from "../stores/vcpDistributedStore";
@@ -31,6 +32,7 @@ import type {
   ToolContext,
   ToolMethodResult,
   ToolResultWithLocalMedia,
+  ToolResultContent,
 } from "@/services/types";
 import {
   inspectFileForExternalTransfer,
@@ -538,7 +540,7 @@ export class VcpNodeProtocol {
     value: unknown,
     requestId: string,
     signal: AbortSignal
-  ): Promise<unknown> {
+  ): Promise<Record<string, unknown> & { content: ToolResultContent[] }> {
     signal.throwIfAborted();
     const structured =
       value !== null &&
@@ -549,22 +551,29 @@ export class VcpNodeProtocol {
         : undefined;
     const resultData = structured ? structured.result : value;
     const objectResult: Record<string, unknown> & ToolResultWithLocalMedia =
-      resultData !== null && typeof resultData === "object"
+      resultData !== null &&
+      typeof resultData === "object" &&
+      !Array.isArray(resultData)
         ? (resultData as Record<string, unknown> & ToolResultWithLocalMedia)
         : { result: resultData };
     const media = structured?.localMedia ?? objectResult.localMedia;
-    if (!media?.length) return value;
-
-    const {
-      localMedia: _localMedia,
-      content: existingContent,
-      ...textResult
-    } = objectResult;
-    const content = [
-      { type: "text", text: JSON.stringify(textResult) },
-      ...(Array.isArray(existingContent) ? existingContent : []),
+    const { localMedia: _localMedia, ...textResult } = objectResult;
+    const authoredContent = getToolResultContent(resultData);
+    const content: ToolResultContent[] = [
+      ...(authoredContent ?? [
+        {
+          type: "text" as const,
+          text: stringifyToolResult(
+            resultData !== null &&
+              typeof resultData === "object" &&
+              !Array.isArray(resultData)
+              ? textResult
+              : resultData
+          ),
+        },
+      ]),
     ];
-    for (const reference of media) {
+    for (const reference of media ?? []) {
       // 外传独立检查当前规则并审批，消息引用中的本地授权仅供本地发送管道使用。
       const file = await this.readExternalFile(
         requestId,
@@ -584,7 +593,10 @@ export class VcpNodeProtocol {
         },
       });
     }
-    return { ...textResult, content };
+    // VCP prioritizes data.content over top-level content. Authored output is the
+    // transport payload; domain data stays in the tool and its audit records.
+    const { data: _domainData, ...presentedResult } = textResult;
+    return { ...(authoredContent ? presentedResult : textResult), content };
   }
 
   /**
@@ -627,28 +639,16 @@ export class VcpNodeProtocol {
         );
       }
 
-      // VCP 从顶层 content 取媒体；混合批次需把文本与媒体按调用顺序平铺。
-      let result = calls.length > 1 ? results : results[0];
-      if (
-        calls.length > 1 &&
-        results.some((item) => Array.isArray(item?.content))
-      ) {
-        result = {
-          content: results.flatMap((item) =>
-            Array.isArray(item?.content)
-              ? item.content
-              : [
-                  {
-                    type: "text",
-                    text:
-                      typeof item === "string"
-                        ? item
-                        : JSON.stringify(item ?? null),
-                  },
-                ]
-          ),
-        };
-      }
+      // 所有批次都使用内容块，业务对象数组不能直接用作 VCP content。
+      const result =
+        calls.length > 1
+          ? {
+              content: results.flatMap((item) => item.content),
+              ...(results.some((item) => item.success === false)
+                ? { success: false }
+                : {}),
+            }
+          : results[0];
       abortController.signal.throwIfAborted();
       this.sendToolResult({
         requestId,

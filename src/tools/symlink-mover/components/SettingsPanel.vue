@@ -106,20 +106,22 @@ const emit = defineEmits<{
 
       <div class="setting-group">
         <div class="setting-header">
-          <label>镜像搬家模式</label>
+          <label for="preserve-source-hierarchy">保留源目录层级</label>
           <el-switch
+            id="preserve-source-hierarchy"
+            aria-label="保留源目录层级"
             :disabled="isProcessing"
             :model-value="mirrorMode"
             @update:model-value="emit('update:mirrorMode', $event)"
           />
         </div>
         <div class="mode-description">
-          开启后，搬家的内容会同时复刻其在基准目录下的层级结构
+          按源文件相对基准目录的路径，在目标目录中保留层级结构
         </div>
         <div class="setting-help">
           <el-icon><InfoFilled /></el-icon>
           <span>
-            关闭时，目标目录直接接收每个源文件或文件夹；开启后，目标目录会接收“源路径相对基准源目录”的路径。
+            此选项适用于两种操作。关闭时直接使用源文件名；开启时按基准源目录下的相对路径放置。预计位置可在左侧文件列表查看。
           </span>
         </div>
       </div>
@@ -127,11 +129,10 @@ const emit = defineEmits<{
       <div v-if="mirrorMode" class="setting-group animate-fade-in">
         <label>基准源目录</label>
         <div class="field-help">
-          <strong>它不是搬家目标。</strong>
           基准源目录用于计算相对路径，必须包含上面添加的所有源文件或文件夹。
           例如源路径为 <code>D:/Projects/App/src</code>，基准源目录为
           <code>D:/Projects/App</code>，目标目录为
-          <code>E:/Archive</code>，搬家后会放到 <code>E:/Archive/src</code>。
+          <code>E:/Archive</code>，对应目标路径为 <code>E:/Archive/src</code>。
         </div>
         <DropZone
           :disabled="isProcessing"
@@ -147,7 +148,7 @@ const emit = defineEmits<{
               :disabled="isProcessing"
               :model-value="baseSourceDir"
               @update:model-value="emit('update:baseSourceDir', $event)"
-              placeholder="待搬家内容的上层基准目录"
+              placeholder="包含所有源文件或文件夹的上层目录"
             />
             <el-button
               :disabled="isProcessing"
@@ -167,7 +168,7 @@ const emit = defineEmits<{
           }}</strong>
           {{
             operationMode === "move"
-              ? "这里是实际内容的新存放位置。工具会在此目录下按源文件名（或镜像后的相对路径）创建目标。"
+              ? "这里是实际内容的新存放位置。工具会在此目录下按源文件名（或保留层级后的相对路径）创建目标。"
               : "这里是链接入口的存放位置。源文件保持原位，工具会在此目录下创建指向源文件的链接。"
           }}
           <br />

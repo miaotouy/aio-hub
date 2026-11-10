@@ -64,7 +64,11 @@ const tickerKey = ref(0);
 
 // 计算属性
 const canExecute = computed(() => {
-  return sourceFiles.value.length > 0 && !!targetDirectory.value;
+  return (
+    sourceFiles.value.length > 0 &&
+    !!targetDirectory.value &&
+    (!mirrorMode.value || !!baseSourceDir.value)
+  );
 });
 
 // 生命周期钩子
@@ -238,6 +242,11 @@ const executeMoveAndLink = async () => {
     return;
   }
 
+  if (mirrorMode.value && !baseSourceDir.value) {
+    customMessage.warning("请选择基准源目录");
+    return;
+  }
+
   const submittedFiles = [...sourceFiles.value];
   const operationOptions = {
     sourcePaths: submittedFiles.map((file) => file.path),
@@ -326,6 +335,10 @@ const executeMoveAndLink = async () => {
     <div class="column">
       <FileListPanel
         :files="sourceFiles"
+        :target-directory="targetDirectory"
+        :mirror-mode="mirrorMode"
+        :base-source-dir="baseSourceDir"
+        :operation-mode="operationMode"
         :disabled="isProcessing"
         @update:files="updateSourceFiles"
         @add-files="addSourceFiles"

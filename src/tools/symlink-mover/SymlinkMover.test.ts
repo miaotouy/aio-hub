@@ -53,8 +53,16 @@ const Files = defineComponent({
 });
 const Settings = defineComponent({
   name: "SettingsPanel",
-  props: ["isProcessing", "targetDirectory"],
-  emits: ["execute", "cancel", "update:targetDirectory", "update:linkType"],
+  props: ["isProcessing", "targetDirectory", "canExecute"],
+  emits: [
+    "execute",
+    "cancel",
+    "update:targetDirectory",
+    "update:linkType",
+    "update:mirrorMode",
+    "update:baseSourceDir",
+    "update:operationMode",
+  ],
   template: "<div />",
 });
 let wrapper: ReturnType<typeof mount>;
@@ -103,6 +111,7 @@ beforeEach(async () => {
   logic.cancelOperation.mockResolvedValue(true);
   logic.preflight.mockResolvedValue(report());
   logic.moveAndLink.mockResolvedValue("done");
+  logic.createLinksOnly.mockResolvedValue("done");
   wrapper = mount(SymlinkMover, {
     global: {
       stubs: { FileListPanel: Files, SettingsPanel: Settings, LogDialog: true },
@@ -119,6 +128,34 @@ async function configure(paths = ["C:/a.txt"]) {
   await flushPromises();
 }
 describe("symlink operation orchestration", () => {
+  it.each(["move", "link-only"] as const)(
+    "requires a base directory when preserving hierarchy in %s",
+    async (mode) => {
+      await configure();
+      const settings = wrapper.getComponent(Settings);
+      settings.vm.$emit("update:operationMode", mode);
+      settings.vm.$emit("update:mirrorMode", true);
+      await flushPromises();
+      expect(settings.props("canExecute")).toBe(false);
+      settings.vm.$emit("execute");
+      await flushPromises();
+      expect(logic.preflight).not.toHaveBeenCalled();
+
+      settings.vm.$emit("update:baseSourceDir", "C:/");
+      await flushPromises();
+      expect(settings.props("canExecute")).toBe(true);
+      settings.vm.$emit("execute");
+      await flushPromises();
+      const options = expect.objectContaining({
+        baseSourceDir: "C:/",
+        operationMode: mode,
+      });
+      expect(logic.preflight).toHaveBeenCalledWith(options);
+      expect(
+        mode === "move" ? logic.moveAndLink : logic.createLinksOnly
+      ).toHaveBeenCalledWith(options);
+    }
+  );
   it("holds one preflight and submits the exact options the user started with", async () => {
     await configure();
     let finish!: (value: unknown) => void;

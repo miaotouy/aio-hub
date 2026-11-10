@@ -16,10 +16,13 @@
 
 <script setup lang="ts">
 import { Delete, Document, InfoFilled } from "@element-plus/icons-vue";
+import type { TargetPreview } from "../targetPreview";
 import type { FileItem } from "../types";
 
 interface Props {
   file: FileItem;
+  preview: TargetPreview;
+  targetLabel: string;
   disabled?: boolean;
 }
 
@@ -38,6 +41,17 @@ const emit = defineEmits<{
     <div class="file-details">
       <div class="file-name" :title="file.name">{{ file.name }}</div>
       <div class="file-path" :title="file.path">{{ file.path }}</div>
+      <div class="target-preview" :class="{ 'preview-issue': preview.issue }">
+        <span class="target-label">{{ targetLabel }}</span>
+        <span
+          v-if="preview.targetPath"
+          class="target-path"
+          :title="preview.targetPath"
+        >
+          {{ preview.targetPath }}
+        </span>
+        <span v-else>{{ preview.issue }}</span>
+      </div>
       <div v-if="file.warning" class="file-warning">
         <el-icon>
           <InfoFilled />
@@ -68,6 +82,30 @@ const emit = defineEmits<{
 
 .file-item:hover {
   background-color: var(--container-bg);
+}
+
+.target-preview {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--text-color);
+}
+
+.target-label {
+  flex-shrink: 0;
+  color: var(--text-color-light);
+}
+
+.target-path {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.preview-issue {
+  color: var(--text-color-light);
 }
 
 .file-item:hover .remove-btn {

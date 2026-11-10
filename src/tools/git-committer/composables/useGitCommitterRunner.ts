@@ -19,6 +19,7 @@
  */
 
 import { invoke } from "@/platform/native/core";
+import { v4 as uuidv4 } from "uuid";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { isAbortError } from "@/llm-apis/common";
 import { parseModelCombo } from "@/utils/modelIdUtils";
@@ -665,9 +666,15 @@ export async function generateCommitMessage(
       isStaged,
       diff: diffText,
     });
-    const requestId = `gc-${repoLabel}-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 8)}`;
+    const repository = repositories.value.find(
+      (repo) => repo.path === repoPath
+    );
+    if (!repository) {
+      customMessage.warning("请先添加仓库");
+      return null;
+    }
+    // 仓库身份关联多次操作，每次生成仍使用独立请求身份。
+    const requestId = `gc-${repository.id}-${uuidv4()}`;
 
     const response = await sendRequest({
       profileId,

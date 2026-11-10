@@ -23,6 +23,7 @@ import {
 import type { DiffTabRef, RepositoryConfig } from "../types";
 
 const repo: RepositoryConfig = {
+  id: "5c329c36-38e1-4c22-a5e7-39f6d8b5df08",
   path: "C:/work/demo",
   name: "demo",
 };

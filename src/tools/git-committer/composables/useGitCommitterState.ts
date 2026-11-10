@@ -20,6 +20,7 @@ import { createModuleLogger } from "@/utils/logger";
  * `appData/git-committer/config.json`，重启后无缝恢复现场。
  */
 import { ref, computed, watch } from "vue";
+import { v4 as uuidv4, validate as validateUuid } from "uuid";
 
 import {
   COMMIT_LANGUAGE_MACRO,
@@ -184,6 +185,7 @@ export function getRepoWorkflowState(path: string): RepoWorkflowState {
 export const currentRepo = computed<RepositoryConfig | null>(() => {
   if (currentRepoPath.value === "__panorama__") {
     return {
+      id: "__panorama__",
       path: "__panorama__",
       name: "全景模式",
       alias: "全景模式",
@@ -250,6 +252,9 @@ export async function loadRepositories(): Promise<void> {
   enableAutoRefresh.value = config.enableAutoRefresh ?? true;
   autoRefreshInterval.value = config.autoRefreshInterval ?? 10;
   repoAvatarPalette.value = resolveRepoAvatarPalette(config.repoAvatarPalette);
+
+  // 历史配置补齐仓库身份，并沿用原有路径关联的会话与草稿。
+  ensureRepositoryIds();
 
   // 为缺少颜色的历史仓库补全随机色
   ensureRepositoryColors();
@@ -345,6 +350,24 @@ function repositoryPathKey(path: string): string {
     : normalized;
 }
 
+/** 为历史仓库补齐唯一 UUID，保留已有合法身份。 */
+function ensureRepositoryIds(): void {
+  const used = new Set<string>();
+  let changed = false;
+  for (const repo of repositories.value) {
+    if (
+      typeof repo.id !== "string" ||
+      !validateUuid(repo.id) ||
+      used.has(repo.id.toLowerCase())
+    ) {
+      repo.id = uuidv4();
+      changed = true;
+    }
+    used.add(repo.id.toLowerCase());
+  }
+  if (changed) persist();
+}
+
 /** 已使用的仓库图标颜色（用于随机分配时避让） */
 function usedRepoColors(): string[] {
   return repositories.value
@@ -373,7 +396,7 @@ export function getRepoColor(repo: RepositoryConfig): string {
 }
 
 /** 添加仓库，返回是否实际加入了列表。 */
-export function addRepository(repo: RepositoryConfig): boolean {
+export function addRepository(repo: Omit<RepositoryConfig, "id">): boolean {
   const pathKey = repositoryPathKey(repo.path);
   if (repositories.value.some((r) => repositoryPathKey(r.path) === pathKey)) {
     return false;
@@ -381,7 +404,7 @@ export function addRepository(repo: RepositoryConfig): boolean {
   if (!repo.color) {
     repo.color = pickRandomRepoColor(repoAvatarPalette.value, usedRepoColors());
   }
-  repositories.value.push(repo);
+  repositories.value.push({ ...repo, id: uuidv4() });
   if (!currentRepoPath.value) {
     currentRepoPath.value = repo.path;
   }

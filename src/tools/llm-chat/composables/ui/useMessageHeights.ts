@@ -247,9 +247,14 @@ export function useMessageHeights(options: Options) {
 
   function apply(slot: Slot) {
     const eager = isEager(slot);
+    // 整行排版与正文恢复共用阅读范围，避免 auto 再次跳过已展开、尚待实测的行。
     slot.element.style.setProperty(
       "content-visibility",
-      eager ? "visible" : slot.nearby?.value === false ? "hidden" : "auto",
+      eager || slot.nearby?.value === true
+        ? "visible"
+        : slot.nearby?.value === false
+          ? "hidden"
+          : "auto",
       "important"
     );
     let height = eager ? undefined : cache.read(keyFor(slot));
@@ -447,7 +452,8 @@ export function useMessageHeights(options: Options) {
           isLive(slot) ||
           slot.element.querySelector("[data-render-pending]") ||
           options.screenshotMode() ||
-          (!isEager(slot) && slot.skipped !== false)
+          (!isEager(slot) &&
+            (slot.nearby ? !slot.nearby.value : slot.skipped !== false))
         )
           continue;
         const height =

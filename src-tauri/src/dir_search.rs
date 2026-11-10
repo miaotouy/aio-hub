@@ -18,6 +18,7 @@ use ignore::{WalkBuilder, WalkState};
 use memchr::memmem;
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -26,73 +27,103 @@ use std::time::{Duration, Instant};
 
 // ===== 搜索生命周期与取消机制 =====
 
-struct ActiveSearch {
-    search_id: String,
+struct SearchCancellation {
     cancelled: Arc<AtomicBool>,
+    notify: tokio::sync::Notify,
 }
 
-/// 全局只允许一个活动目录搜索。
-///
-/// 将取消 token 绑定到 searchId，避免新搜索重置旧搜索的取消标志，或任意
-/// `dir_search_cancel` 误取消其他调用。活动槽位会持续持有到 walker 线程 join 后。
+struct SearchQueue {
+    searches: Mutex<HashMap<String, Arc<SearchCancellation>>>,
+    slot: Arc<tokio::sync::Semaphore>,
+}
+
+/// 全应用串行执行目录搜索；每个排队或运行中的请求独立持有取消状态。
 pub struct DirSearchCancellation {
-    active: Mutex<Option<ActiveSearch>>,
+    queue: Arc<SearchQueue>,
+}
+
+/// 生命周期守卫：排队被丢弃、搜索失败或 worker panic 时同样清理身份。
+pub struct QueuedSearch {
+    queue: Arc<SearchQueue>,
+    search_id: String,
+    cancellation: Arc<SearchCancellation>,
+}
+
+impl QueuedSearch {
+    pub fn token(&self) -> Arc<AtomicBool> {
+        self.cancellation.cancelled.clone()
+    }
+
+    pub async fn wait(&self) -> Result<Option<tokio::sync::OwnedSemaphorePermit>, String> {
+        if self.cancellation.cancelled.load(Ordering::SeqCst) {
+            return Ok(None);
+        }
+        tokio::select! {
+            biased;
+            _ = self.cancellation.notify.notified() => Ok(None),
+            permit = self.queue.slot.clone().acquire_owned() => {
+                let permit = permit.map_err(|_| "目录搜索队列已关闭".to_string())?;
+                if self.cancellation.cancelled.load(Ordering::SeqCst) {
+                    Ok(None)
+                } else {
+                    Ok(Some(permit))
+                }
+            }
+        }
+    }
+}
+
+impl Drop for QueuedSearch {
+    fn drop(&mut self) {
+        if let Ok(mut searches) = self.queue.searches.lock() {
+            searches.remove(&self.search_id);
+        }
+    }
 }
 
 impl DirSearchCancellation {
     pub fn new() -> Self {
         Self {
-            active: Mutex::new(None),
+            queue: Arc::new(SearchQueue {
+                searches: Mutex::new(HashMap::new()),
+                slot: Arc::new(tokio::sync::Semaphore::new(1)),
+            }),
         }
     }
 
-    pub fn begin(&self, search_id: &str) -> Result<Arc<AtomicBool>, String> {
-        let mut active = self
-            .active
+    pub fn begin(&self, search_id: &str) -> Result<QueuedSearch, String> {
+        let mut searches = self
+            .queue
+            .searches
             .lock()
             .map_err(|_| "目录搜索状态锁已损坏".to_string())?;
-
-        if active.is_some() {
-            return Err("已有目录搜索正在运行".to_string());
+        if searches.contains_key(search_id) {
+            return Err("搜索身份已在使用".to_string());
         }
-
-        let cancelled = Arc::new(AtomicBool::new(false));
-        *active = Some(ActiveSearch {
-            search_id: search_id.to_string(),
-            cancelled: cancelled.clone(),
+        let cancellation = Arc::new(SearchCancellation {
+            cancelled: Arc::new(AtomicBool::new(false)),
+            notify: tokio::sync::Notify::new(),
         });
-        Ok(cancelled)
+        searches.insert(search_id.to_string(), cancellation.clone());
+        Ok(QueuedSearch {
+            queue: self.queue.clone(),
+            search_id: search_id.to_string(),
+            cancellation,
+        })
     }
 
     pub fn cancel(&self, search_id: &str) -> Result<bool, String> {
-        let active = self
-            .active
+        let searches = self
+            .queue
+            .searches
             .lock()
             .map_err(|_| "目录搜索状态锁已损坏".to_string())?;
-        let Some(active) = active.as_ref() else {
+        let Some(search) = searches.get(search_id) else {
             return Ok(false);
         };
-
-        if active.search_id != search_id {
-            return Ok(false);
-        }
-
-        active.cancelled.store(true, Ordering::SeqCst);
+        search.cancelled.store(true, Ordering::SeqCst);
+        search.notify.notify_one();
         Ok(true)
-    }
-
-    pub fn finish(&self, search_id: &str) -> Result<(), String> {
-        let mut active = self
-            .active
-            .lock()
-            .map_err(|_| "目录搜索状态锁已损坏".to_string())?;
-        if active
-            .as_ref()
-            .is_some_and(|current| current.search_id == search_id)
-        {
-            *active = None;
-        }
-        Ok(())
     }
 }
 
@@ -109,24 +140,90 @@ mod search_lifecycle_tests {
     #[test]
     fn cancellation_is_scoped_to_search_id() {
         let state = DirSearchCancellation::new();
-        let token = state.begin("search-a").expect("first search should start");
-
-        assert!(!state.cancel("search-b").expect("cancel should not fail"));
-        assert!(!token.load(Ordering::SeqCst));
-        assert!(state.cancel("search-a").expect("cancel should not fail"));
-        assert!(token.load(Ordering::SeqCst));
+        let first = state.begin("search-a").unwrap();
+        let second = state.begin("search-b").unwrap();
+        assert!(!state.cancel("unknown").unwrap());
+        assert!(state.cancel("search-b").unwrap());
+        assert!(!first.token().load(Ordering::SeqCst));
+        assert!(second.token().load(Ordering::SeqCst));
+        assert!(state.begin("search-a").is_err());
     }
 
-    #[test]
-    fn active_slot_is_released_only_by_matching_search() {
+    #[tokio::test]
+    async fn searches_wait_in_order_and_release_on_worker_exit() {
         let state = DirSearchCancellation::new();
-        state.begin("search-a").expect("first search should start");
+        let first = state.begin("search-a").unwrap();
+        let first_slot = first.wait().await.unwrap().unwrap();
+        let second = state.begin("search-b").unwrap();
+        let third = state.begin("search-c").unwrap();
+        let second_wait = second.wait();
+        tokio::pin!(second_wait);
+        tokio::select! {
+            biased;
+            _ = &mut second_wait => panic!("second search must wait"),
+            _ = async {} => {}
+        }
+        let third_wait = third.wait();
+        tokio::pin!(third_wait);
+        tokio::select! {
+            biased;
+            _ = &mut third_wait => panic!("third search must wait"),
+            _ = async {} => {}
+        }
+        // Requesting cancellation alone must not let another walker start.
+        state.cancel("search-a").unwrap();
+        tokio::select! {
+            biased;
+            _ = &mut second_wait => panic!("active worker has not exited yet"),
+            _ = async {} => {}
+        }
+        drop(first_slot);
+        drop(first);
+        let second_slot = second_wait.await.unwrap().unwrap();
+        tokio::select! {
+            biased;
+            _ = &mut third_wait => panic!("third search must wait for second"),
+            _ = async {} => {}
+        }
+        drop(second_slot);
+        assert!(third_wait.await.unwrap().is_some());
+    }
 
-        assert!(state.begin("search-b").is_err());
-        state.finish("search-b").expect("finish should not fail");
-        assert!(state.begin("search-b").is_err());
+    #[tokio::test]
+    async fn worker_panic_releases_slot_and_search_identity() {
+        let state = DirSearchCancellation::new();
+        let first = state.begin("search-a").unwrap();
+        let slot = first.wait().await.unwrap().unwrap();
+        let failed = tokio::task::spawn_blocking(move || {
+            let _slot = slot;
+            let _search = first;
+            panic!("worker failed");
+        })
+        .await;
+        assert!(failed.is_err());
+        let retry = state.begin("search-a").unwrap();
+        assert!(retry.wait().await.unwrap().is_some());
+    }
 
-        state.finish("search-a").expect("finish should not fail");
+    #[tokio::test]
+    async fn queued_cancellation_settles_without_waiting_for_active_search() {
+        let state = DirSearchCancellation::new();
+        let first = state.begin("search-a").unwrap();
+        let _slot = first.wait().await.unwrap().unwrap();
+        let queued = state.begin("search-b").unwrap();
+        {
+            let waiting = queued.wait();
+            tokio::pin!(waiting);
+            tokio::select! {
+                biased;
+                _ = &mut waiting => panic!("queued search must wait"),
+                _ = async {} => {}
+            }
+            state.cancel("search-b").unwrap();
+            assert!(waiting.await.unwrap().is_none());
+        }
+        assert!(!first.token().load(Ordering::SeqCst));
+        drop(queued);
         assert!(state.begin("search-b").is_ok());
     }
 }

@@ -194,8 +194,12 @@ describe("消息占位与实际高度切换", () => {
       expect(height()).toBe(499.625);
 
       nearby.value = false;
+      visibility(true);
       await flush();
       expect(slot.style.getPropertyValue("content-visibility")).toBe("hidden");
+      expect(height()).toBe(499.625);
+      deliver(slot, 600, 500);
+      await flush();
       expect(height()).toBe(499.625);
       screenshotMode.value = true;
       await flush();
@@ -203,22 +207,22 @@ describe("消息占位与实际高度切换", () => {
       screenshotMode.value = false;
       nearby.value = true;
       await flush();
-      expect(slot.style.getPropertyValue("content-visibility")).toBe("auto");
+      expect(slot.style.getPropertyValue("content-visibility")).toBe("visible");
 
-      visibility(true);
-      deliver(slot, 600, 500);
+      // 重入共享阅读区后直接采用新实测高度，浏览器可能沿用上次 skipped 状态。
+      deliver(slot, 600, 680.5);
       await flush();
-      expect(height()).toBe(499.625);
+      expect(height()).toBe(680.5);
 
       // 回收 / 重建显示子树期间，保留上一份实测行高；等待有效的新测量校准。
       displayMounted.value = false;
       await nextTick();
       await flush();
-      expect(height()).toBe(499.625);
+      expect(height()).toBe(680.5);
       displayMounted.value = true;
       await nextTick();
       await flush();
-      expect(height()).toBe(499.625);
+      expect(height()).toBe(680.5);
       visibility(false);
       deliver(slot, 600, 720.25);
       await flush();
@@ -263,7 +267,7 @@ describe("消息占位与实际高度切换", () => {
       expect(slot.style.getPropertyValue("content-visibility")).toBe("visible");
       message.value.status = "complete";
       await flush();
-      expect(slot.style.getPropertyValue("content-visibility")).toBe("auto");
+      expect(slot.style.getPropertyValue("content-visibility")).toBe("visible");
       expect(height()).toBe(500);
     } finally {
       app.unmount();

@@ -58,9 +58,9 @@
 
 ### 3.1 CSS 原生虚拟渲染 (CSS Native Virtual Rendering)
 
-- **消息级跳过渲染**: [MessageList.vue](../../components/message/MessageList.vue) 通过 [`useMessageHeights`](../../composables/ui/useMessageHeights.ts) 为普通、工具调用和压缩消息管理 `content-visibility: auto`。占位高度依次取匹配当前内容与布局的实测缓存、Pretext 普通段落估值、500px 兜底。富文本渲染器内部保持块级跳过渲染关闭，消息组件继续按现有方式挂载。
+- **消息级跳过渲染**: [MessageList.vue](../../components/message/MessageList.vue) 通过 [`useMessageHeights`](../../composables/ui/useMessageHeights.ts) 为普通、工具调用和压缩消息管理整行排版。整行与正文共用 `useMessageReadingArea` 的阅读范围：阅读区及上下 600px 缓冲内使用 `content-visibility: visible`，屏外使用 `hidden` 并保留占位高度；独立使用且未提供共享阅读区时沿用 `auto`。占位高度依次取匹配当前内容与布局的实测缓存、Pretext 普通段落估值、500px 兜底。富文本渲染器内部保持块级跳过渲染关闭，消息组件继续按现有方式挂载。
 - **普通段落预估**: [`MessageContent.vue`](../../components/message/MessageContent.vue) 通过 [`useMessageHeightSource`](../../composables/ui/useMessageHeightSource.ts) 提供宏处理后的正文与实际生效的样式标识；有渲染正则、附件、翻译或编辑状态时交给实测。首版覆盖 16,000 字符以内的普通中英文、emoji 与多段文本，结构化 Markdown、HTML、思考内容等采用兜底占位。按消息可用宽度、气泡限宽与头像列估算正文宽度，并从同类已显示消息采样字体、行高和头尾高度；采样只读取正在排版的消息。
-- **实测缓存与失效**: [`MessageHeightCache`](../../utils/messageHeightCache.ts) 为每个列表分别缓存最多 256 条整行实测高度与 256 条已准备文本。缓存匹配会话、内容、消息装饰、宽度与渲染配置；内容、宽度、字号、字体加载、DPR 或布局变化后重新估算。宽度变化可复用 Pretext 的准备结果。显式的 `contain-intrinsic-size: none <height>px` 配合 `contentvisibilityautostatechange` 与共享 `ResizeObserver` 管理高度，避免浏览器自动记忆旧尺寸。屏外占位回调、零尺寸和生成态均跳过实测写入；折叠及正文 DOM 变化使对应缓存失效。
+- **实测缓存与失效**: [`MessageHeightCache`](../../utils/messageHeightCache.ts) 为每个列表分别缓存最多 256 条整行实测高度与 256 条已准备文本。缓存匹配会话、内容、消息装饰、宽度与渲染配置；内容、宽度、字号、字体加载、DPR 或布局变化后重新估算。宽度变化可复用 Pretext 的准备结果。显式的 `contain-intrinsic-size: none <height>px` 配合共享 `ResizeObserver` 管理高度。共享阅读区内的行直接接受有效实测，屏外行保留上次高度；独立 `auto` 场景通过 `contentvisibilityautostatechange` 判断跳过状态。屏外占位回调、未完成排版、零尺寸和生成态均跳过实测写入；正文子树回收及恢复时保留实测缓存，内容、外观与宽度变化后重新校准。
 - **调度与生命周期**: 历史文本准备按约 5ms 的帧预算分批执行；最后一条及生成中的消息实时排版，生成期间跳过逐 token 估高。列表停用时断开尺寸和正文观察器，恢复后重连；卸载时清理观察器、监听、待执行帧与列表缓存。
 - **末尾消息**: 运行时显式保持最后一条消息可见；CSS 回退选择器限定最后一个 `.message-slot` 中的消息，避免 `.chat-message:last-child` 匹配到每个独立 wrapper 内的末子元素。
 - **阅读锚定**: 阅读历史时使用 `overflow-anchor: auto`，由浏览器补偿视口上方消息的高度修正。底部跟随与分支定位期间设为 `none`，滚动交给相应的定位逻辑。

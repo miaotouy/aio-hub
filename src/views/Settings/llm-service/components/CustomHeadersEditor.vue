@@ -243,9 +243,16 @@ function handleCancel() {
               >
                 <template #prepend>Key</template>
               </el-input>
-              <div class="value-input-wrapper">
+              <div class="value-input-wrapper" data-sensitive>
                 <el-input
                   v-model="header.value"
+                  :type="
+                    /authorization|api.?key|token|secret|cookie/i.test(
+                      header.key
+                    )
+                      ? 'password'
+                      : 'text'
+                  "
                   placeholder="请求头值（支持 {{变量}} 模板）"
                 >
                   <template #prepend>Value</template>
@@ -253,7 +260,6 @@ function handleCancel() {
                 <div
                   v-if="hasTemplateVar(header.value)"
                   class="resolved-preview"
-                  :title="getResolvedPreview(header.value)"
                 >
                   → {{ getResolvedPreview(header.value) }}
                 </div>

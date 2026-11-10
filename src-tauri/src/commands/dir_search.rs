@@ -22,27 +22,30 @@ pub async fn dir_search(
     cancellation: State<'_, DirSearchCancellation>,
 ) -> Result<SearchSummary, String> {
     let search_id = request.search_id.clone();
-    let token = match cancellation.begin(&search_id) {
-        Ok(token) => token,
-        Err(_) => {
-            return Ok(SearchSummary {
-                search_id,
-                files_scanned: 0,
-                files_matched: 0,
-                total_matches: 0,
-                bytes_read: 0,
-                duration_ms: 0.0,
-                stop_reason: SearchStopReason::Busy,
-                truncated: true,
-                cancelled: false,
-            })
-        }
+    let search = cancellation.begin(&search_id)?;
+    let Some(permit) = search.wait().await? else {
+        return Ok(SearchSummary {
+            search_id,
+            files_scanned: 0,
+            files_matched: 0,
+            total_matches: 0,
+            bytes_read: 0,
+            duration_ms: 0.0,
+            stop_reason: SearchStopReason::Cancelled,
+            truncated: true,
+            cancelled: true,
+        });
     };
-    let result = crate::dir_search::dir_search(request, token, &|event, payload| {
-        let _ = window.emit(event, payload);
-    });
-    let _ = cancellation.finish(&search_id);
-    result
+    // Directory traversal and walker join must not block the async IPC runtime.
+    tauri::async_runtime::spawn_blocking(move || {
+        let _permit = permit;
+        let _search = search;
+        crate::dir_search::dir_search(request, _search.token(), &|event, payload| {
+            let _ = window.emit(event, payload);
+        })
+    })
+    .await
+    .map_err(|error| format!("目录搜索任务失败: {error}"))?
 }
 #[tauri::command]
 pub async fn dir_search_cancel(

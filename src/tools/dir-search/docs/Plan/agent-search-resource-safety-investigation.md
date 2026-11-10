@@ -211,7 +211,7 @@ filesScanned: number
 bytesRead: number
 ```
 
-`matchLimit`、`fileLimit` 和 `deadline` 都不能继续使用模糊的“搜索完成”表述。
+`matchLimit`、`fileLimit` 和 `deadline` 都不能继续使用模糊的“搜索完成”表述。`busy` 保留用于兼容旧宿主，Agent 动作层将其作为执行失败返回。
 
 ### 5.2. 统一超时取消传播
 
@@ -230,13 +230,15 @@ VCP 采用两层兼容策略：AIO 节点必须立即把 115 秒 timeout 和连�
 
 ### 5.3. 并发策略
 
-第一阶段优先保证桌面响应，后端只允许一个活动搜索。新的搜索到达时：
+第一阶段优先保证桌面响应，后端只允许一个活动搜索。2026-11-07 调整 Tauri 与 Electron 的接纳策略：保留单搜索预算，后续请求统一排队。新的搜索到达时：
 
 - UI 已明确取消旧搜索：等待旧搜索释放生命周期后开始新搜索；
-- Agent/VCP 并发请求：返回结构化 `busy`，由调用方缩小范围或稍后重试；
+- Agent/VCP 并发请求：按到达顺序排队，前一个搜索完成清理后自动启动下一个；排队请求可独立取消，扫描 deadline 从实际执行开始计时；
 - 不允许通过新调用的 `reset()` 复活旧搜索。
 
 后续只有在基准证明 4 worker 单搜索仍有足够余量时，才评估全局 worker budget，而不是简单把并发数改成 2。
+
+2026-11-07 验证记录：Rust 搜索生命周期 4 项、Agent/界面相关 22 项与 Electron 宿主 10 项测试通过；Electron 隔离开发实例经 Agent 动作层同时发起 3 次原生搜索，在 300 个样本文件上分别返回 300、300、0 个匹配，三次均完整结束。Tauri 命令尚未完成本轮真实窗口走查。
 
 ### 5.4. Agent 契约与提示
 
@@ -323,11 +325,11 @@ VCP 采用两层兼容策略：AIO 节点必须立即把 115 秒 timeout 和连�
 - VCP 前端在 16:59:12 进入“格式化结果”，与后端 5.8 秒结束时延一致；没有出现 115 秒外层 timeout，也没有超时后 walker 继续活动的证据。
 - 该 pattern 会先被调用日志写入 `E:\rc20` 根目录下的应用日志，因此本次出现 1 个文件、2 个匹配，不能称为严格零匹配测试；但匹配数远低于 `maxResults=50`，没有触发匹配数提前终止，仍实际覆盖了宽范围扫描与资源预算停止。后续严格零匹配复测应排除日志目录，或将测试根目录放到日志存储路径之外。
 
-上述样本确认了 LLM → VCP → AIO 节点 → Tool Registry → Tauri/Rust walker → 结构化结果回注的普通调用闭环，以及 2 GiB 预算、结构化截断结果和 walker join 在真实 Tauri/VCP 链路中生效；它们不能替代并发 busy、服务端 `cancel_tool`、断线 abort、替换零写入以及 CPU/线程/UI 响应基准。
+上述样本确认了 LLM → VCP → AIO 节点 → Tool Registry → Tauri/Rust walker → 结构化结果回注的普通调用闭环，以及 2 GiB 预算、结构化截断结果和 walker join 在真实 Tauri/VCP 链路中生效；它们不能替代并发排队、服务端 `cancel_tool`、断线 abort、替换零写入以及 CPU/线程/UI 响应基准。
 
 #### 未完成项与有意偏差
 
-1. 第 7.4 节已完成 LLM/VCP 普通搜索闭环、直接 Tool Calling 和宽范围稀有匹配搜索的资源预算停止与 walker join 基础验收；并发 busy、服务端取消、断线 abort、UI 交互和替换零写入仍未执行。24 逻辑处理器机器也尚未记录 CPU、线程数、取消延迟和 UI 响应，因此 4 worker、5 层、50,000 文件、2 GiB、30 秒仍是第一阶段默认值，待基准校准。
+1. 第 7.4 节已完成 LLM/VCP 普通搜索闭环、直接 Tool Calling 和宽范围稀有匹配搜索的资源预算停止与 walker join 基础验收；并发排队、服务端取消、断线 abort、UI 交互和替换零写入仍未执行。24 逻辑处理器机器也尚未记录 CPU、线程数、取消延迟和 UI 响应，因此 4 worker、5 层、50,000 文件、2 GiB、30 秒仍是第一阶段默认值，待基准校准。
 2. `register_tools_ack` 未与本次取消协议强绑定：`cancelTool` capability 已通过注册能力协商，ack 语义保留为独立的非阻塞兼容改进。
 3. VCPToolBox 分布式取消改动已由 PR #423 合并上游（合并提交 `d4eaecfa`）；AIO Hub 自身 30 秒 deadline、AbortSignal 以及连接断开时本地 abort 继续作为独立资源边界。
 
@@ -342,7 +344,7 @@ VCP 采用两层兼容策略：AIO 节点必须立即把 115 秒 timeout 和连�
 - deadline 停止；
 - 单 searchId 取消不影响其他状态；
 - 取消后 worker 已 join，活动搜索槽位才释放；
-- 并发请求返回 `busy` 或按约定等待；
+- 并发请求按到达顺序等待，取消排队请求即时结束，前一请求失败后继续执行后续搜索；
 - 隐藏目录默认排除、显式包含；
 - 匹配上限在并行竞争下只允许有限、已记录的超出量；
 - 不完整预搜索不能进入替换写入。
@@ -355,7 +357,7 @@ VCP 采用两层兼容策略：AIO 节点必须立即把 115 秒 timeout 和连�
 - 非法、NaN、负数和超大参数的归一化；
 - 事件 searchId 隔离；
 - AbortSignal 触发对应 searchId 的取消；
-- 超时、取消、busy 和 truncated 结果格式；
+- 超时、取消和 truncated 结果格式，以及旧宿主 busy 汇总的失败兼容；
 - 替换在预搜索截断时零写入。
 
 为 Tool Calling 与 VCP 增加超时测试，断言不仅返回 timeout，还实际触发 context signal。AIO 节点测试还要覆盖收到 `cancel_tool`、115 秒 timeout 和连接断开时均只 abort 对应在途调用，并在完成后清理 requestId 映射。VCPToolBox 使用现有 `node:test` 风格增加定向协议测试：服务端 timeout 在 socket OPEN 且能力已声明时只发送一次 `cancel_tool`；节点断线立即 reject 该节点的 pending 且不尝试向已关闭 socket 发送；来自非目标节点的同 requestId `tool_result` 被拒绝且不会完成请求。根 `npm test` 仍是占位脚本，VCP PR 应显式运行 `node --test <新增测试文件>` 和 `node --check WebSocketServer.js`。
@@ -378,7 +380,7 @@ bun run check:backend
 普通浏览器不能验证 Tauri IPC、Rust walker、事件隔离和原生进程资源占用。真实窗口至少覆盖：
 
 1. [x] 从聊天 LLM 经 VCP 执行普通目录搜索并消费返回结果，再对 `E:\rc20` 执行宽范围稀有匹配搜索，确认端到端调用闭环、按资源预算停止和 walker join。2026-07-25 普通样本在 181.3537 ms 完整结束；宽范围样本由 2 GiB 字节预算在约 5.8 秒终止。严格零匹配仍需排除根目录内的应用日志后补测。
-2. [ ] 搜索期间连续发起第二次调用，确认返回 busy，且不会出现两个完整 worker 池扫描。
+2. [ ] 搜索期间连续发起多次调用，确认按顺序自动执行；取消排队请求后，其余请求继续执行，最多运行一个完整 worker 池。
 3. [ ] 从 VCP 发起长搜索：用测试配置把服务端 timeout 调短时，确认支持 capability 的在线节点收到 `cancel_tool`，后端日志随后出现对应 requestId/searchId 的 cancelled/end；断开节点连接时，确认 VCPToolBox 立即结束该节点 pending，AIO 节点本地也 abort 在途搜索，而不是等待原 timeout。
 4. [ ] 搜索期间采集 AIO Hub 进程 CPU 与线程数，同时打开资源管理器、拖动窗口并操作 AIO Hub，确认桌面仍可交互。
 5. [ ] 对替换流程制造截断预搜索，确认磁盘文件没有任何修改。

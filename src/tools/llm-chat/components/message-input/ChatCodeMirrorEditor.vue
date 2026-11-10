@@ -225,9 +225,10 @@ function buildSlashCommandContext(editView: EditorView): ChatInputContext {
     insertText: (text: string, from?: number, to?: number) => {
       const start = from ?? editView.state.selection.main.from;
       const end = to ?? editView.state.selection.main.to;
+      const insert = editView.state.toText(text);
       editView.dispatch({
-        changes: { from: start, to: end, insert: text },
-        selection: { anchor: start + text.length },
+        changes: { from: start, to: end, insert },
+        selection: { anchor: start + insert.length },
       });
     },
     requestSubmit: () => emit("submit"),
@@ -639,9 +640,12 @@ defineExpose({
     if (insertTo < insertFrom) insertTo = insertFrom;
     if (insertTo > docLength) insertTo = docLength;
 
+    // 按编辑器归一化换行后的长度定位光标，避免 CRLF 文本导致选区越界。
+    const insert = view.value.state.toText(text);
+
     view.value.dispatch({
-      changes: { from: insertFrom, to: insertTo, insert: text },
-      selection: { anchor: insertFrom + text.length },
+      changes: { from: insertFrom, to: insertTo, insert },
+      selection: { anchor: insertFrom + insert.length },
       scrollIntoView: true,
     });
 

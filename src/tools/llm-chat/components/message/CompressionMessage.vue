@@ -27,6 +27,7 @@ import type {
 import {
   ChevronRight,
   Database,
+  Power,
   Edit2,
   Check,
   X,
@@ -292,13 +293,16 @@ defineExpose({
       ></div>
     </div>
 
-    <!-- 装饰性侧边栏 -->
+    <!-- 摘要展开/折叠入口 -->
     <button
       type="button"
       class="compression-bar"
-      :disabled="isSessionReadOnly || props.screenshotMode"
-      :title="isEnabled ? '禁用压缩 (恢复上下文)' : '启用压缩'"
-      @click="!isSessionReadOnly && emit('toggle-enabled')"
+      :disabled="props.screenshotMode"
+      :title="isExpanded ? '折叠压缩摘要' : '展开压缩摘要'"
+      :aria-label="isExpanded ? '折叠压缩摘要' : '展开压缩摘要'"
+      :aria-expanded="isExpanded || props.screenshotMode"
+      :aria-controls="`compression-summary-${message.id}`"
+      @click="isExpanded = !isExpanded"
     >
       <div class="bar-line"></div>
       <div class="bar-icon">
@@ -344,7 +348,7 @@ defineExpose({
           <button
             type="button"
             class="summary-toggle"
-            :aria-expanded="isExpanded"
+            :aria-expanded="isExpanded || props.screenshotMode"
             :aria-controls="`compression-summary-${message.id}`"
             @click="isExpanded = !isExpanded"
           >
@@ -389,12 +393,14 @@ defineExpose({
               class="action-btn"
               :title="
                 isEnabled
-                  ? '禁用压缩 (恢复原始消息)'
-                  : '启用压缩 (隐藏原始消息)'
+                  ? '停用压缩摘要，使用原始消息作为上下文'
+                  : '启用压缩摘要，替代原始消息作为上下文'
               "
+              aria-label="使用压缩摘要"
+              :aria-pressed="isEnabled"
               @click="!isSessionReadOnly && emit('toggle-enabled')"
             >
-              <Database :size="14" :class="{ 'text-primary': isEnabled }" />
+              <Power :size="14" :class="{ 'text-primary': isEnabled }" />
             </button>
 
             <el-popconfirm

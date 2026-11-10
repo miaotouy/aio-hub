@@ -78,7 +78,7 @@
 
 - **消息列表**：[`MessageList.vue`](src/tools/llm-chat/components/message/MessageList.vue) 会计算当前路径上所有被隐藏的节点 ID。
 - **遮罩效果**：[`ChatMessage.vue`](src/tools/llm-chat/components/message/ChatMessage.vue) 接收 `isCompressed` 属性，被压缩的消息会呈现半透明状态（`opacity: 0.5`）。
-- **摘要渲染**：使用专门的 [`CompressionMessage.vue`](src/tools/llm-chat/components/message/CompressionMessage.vue) 组件展示摘要内容及压缩统计，默认折叠，按需展开或编辑。
+- **摘要渲染**：使用专门的 [`CompressionMessage.vue`](src/tools/llm-chat/components/message/CompressionMessage.vue) 组件展示摘要内容及压缩统计，默认折叠，按需展开或编辑。左侧数据库图标与标题用于展开/折叠摘要，只读会话也可使用；右侧电源按钮独立控制摘要是否参与上下文构建。
 
 ## 4. 配置管理
 

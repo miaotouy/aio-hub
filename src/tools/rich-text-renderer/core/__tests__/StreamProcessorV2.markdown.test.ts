@@ -159,6 +159,16 @@ const streamMarkdownFixtures = [
     label: "unfinished emphasis and link recover as input continues",
     chunks: ["**unfinished [label](https://exam", "ple.com", ")** after"],
   },
+  {
+    label: "HTML code owns request delimiters until its closing tag arrives",
+    chunks: [
+      '<p>它连 <code class="example"><<<[TOOL_',
+      "REQUEST]>>>",
+      "</co",
+      "de> 本来就是正文</p>\n\n",
+      "**后文**",
+    ],
+  },
 ];
 
 const streamMarkdownCases = streamMarkdownFixtures.flatMap(

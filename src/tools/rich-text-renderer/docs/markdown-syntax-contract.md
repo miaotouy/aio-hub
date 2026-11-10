@@ -59,7 +59,7 @@ CommonMark 中反斜杠可能表达普通标点转义。官方报告保持严格
 
 ## VCP
 
-完整 `<<<[TOOL_REQUEST]>>>` … `<<<[END_TOOL_REQUEST]>>>` 请求按展示节点解析，保存原文、闭合状态、工具名、命令和参数。行内代码中的标记保持字面量，围栏示例和角色块的交界沿用已有 VCP 专项测试。
+完整 `<<<[TOOL_REQUEST]>>>` … `<<<[END_TOOL_REQUEST]>>>` 请求按展示节点解析，保存原文、闭合状态、工具名、命令和参数。反引号行内代码和 HTML `<code>` 中的请求标记保持字面量；HTML 代码标签闭合后继续按正常协议识别后续请求。该边界同样适用于嵌套 HTML 和流式分块输入。围栏示例和角色块的交界沿用已有 VCP 专项测试。
 
 渲染侧的模糊识别服务于内容展示；工具执行继续使用严格协议解析。执行边界和协议格式以 [tool-calling 架构](../../tool-calling/ARCHITECTURE.md)及 [vcp-connector 架构](../../vcp-connector/ARCHITECTURE.md)为准。
 

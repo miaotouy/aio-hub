@@ -722,6 +722,7 @@ const invoke = (action: ToolbarAction) => {
     />
     <!-- 导出对话框 -->
     <ExportBranchDialog
+      v-if="showExportDialog"
       v-model:visible="showExportDialog"
       :preset-count="presetCount"
       :session="scopedSessionDetail"

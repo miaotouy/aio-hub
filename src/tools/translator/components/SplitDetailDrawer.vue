@@ -16,7 +16,7 @@
 
 <template>
   <el-drawer
-    v-model="visible"
+    v-model="pageVisible"
     title="分片详情"
     size="520px"
     append-to-body
@@ -71,6 +71,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { computed } from "vue";
 import type { LongTextChunkStatus, LongTextTask } from "../types";
 
@@ -87,6 +88,7 @@ const visible = computed({
   get: () => props.modelValue,
   set: (value) => emit("update:modelValue", value),
 });
+const { visible: pageVisible } = usePageOverlay(visible);
 
 const totalCount = computed(() => props.task?.chunks.length || 0);
 const completedCount = computed(

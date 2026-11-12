@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { getBrowserClipboard } from "@/platform/browser";
 
 import { computed, ref, watch } from "vue";
@@ -86,6 +87,7 @@ watch(
 );
 const selectedKeys = ref<any[]>([]);
 const isImporting = ref(false);
+const { visible: pageIsImporting } = usePageOverlay(isImporting);
 const importText = ref("");
 
 // 自动恢复时长设置
@@ -663,7 +665,7 @@ const maskKey = (key: string) => {
 
     <!-- 导入对话框 -->
     <el-dialog
-      v-model="isImporting"
+      v-model="pageIsImporting"
       title="批量导入密钥"
       width="600px"
       append-to-body

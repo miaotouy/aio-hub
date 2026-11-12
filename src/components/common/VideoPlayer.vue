@@ -936,6 +936,8 @@ onActivated(() => {
 
 onDeactivated(() => {
   isActive.value = false;
+  // 网页全屏脱离页面挂载，切换工具时归还到播放器原位置。
+  isWebFullscreen.value = false;
   // 切换标签页时建议暂停视频，防止后台偷跑流量/性能消耗（可选）
   // if (isPlaying.value) videoRef.value?.pause();
 });

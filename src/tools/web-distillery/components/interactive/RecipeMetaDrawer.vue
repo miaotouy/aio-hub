@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { computed, ref, onMounted } from "vue";
 import { Save, Info, Cookie } from "lucide-vue-next";
 import { useWebDistilleryStore } from "../../stores/store";
@@ -35,6 +36,7 @@ const visible = computed({
   get: () => props.modelValue,
   set: (val) => emit("update:modelValue", val),
 });
+const { visible: pageVisible } = usePageOverlay(visible);
 
 // 身份卡片列表
 const allProfiles = ref<CookieProfile[]>([]);
@@ -68,7 +70,7 @@ const handleSave = async () => {
 
 <template>
   <el-drawer
-    v-model="visible"
+    v-model="pageVisible"
     title="保存配方"
     size="400px"
     direction="rtl"

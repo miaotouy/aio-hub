@@ -103,7 +103,7 @@
     </div>
 
     <!-- 保存为预设弹窗 -->
-    <el-dialog v-model="saveDialogVisible" title="保存为预设" width="420">
+    <el-dialog v-model="pageSaveDialogVisible" title="保存为预设" width="420">
       <el-form label-position="top">
         <el-form-item label="预设名称">
           <el-input
@@ -136,7 +136,7 @@
     </el-dialog>
 
     <!-- 管理预设弹窗 -->
-    <el-dialog v-model="dialogVisible" title="管理预设" width="600">
+    <el-dialog v-model="pageDialogVisible" title="管理预设" width="600">
       <div class="manager-body">
         <!-- 内置预设只读展示 -->
         <div class="preset-group">
@@ -238,6 +238,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { ref, computed, reactive, nextTick } from "vue";
 import {
   Save,
@@ -285,6 +286,7 @@ const handlePresetChange = (presetId: string | "") => {
 
 // 保存为预设
 const saveDialogVisible = ref(false);
+const { visible: pageSaveDialogVisible } = usePageOverlay(saveDialogVisible);
 const saveForm = reactive({ name: "", description: "" });
 
 const handleSaveAsPreset = () => {
@@ -300,6 +302,7 @@ const confirmSave = () => {
 
 // 管理预设
 const dialogVisible = ref(false);
+const { visible: pageDialogVisible } = usePageOverlay(dialogVisible);
 const renamingId = ref<string | null>(null);
 const renameForm = reactive({ name: "" });
 const startRename = (preset: FFmpegPreset) => {

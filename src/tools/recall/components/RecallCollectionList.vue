@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { ref, computed, watch } from "vue";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import { search as searchRecall } from "../services/api";
@@ -60,6 +61,7 @@ const {
 } = useRecallCollection();
 const backup = useKnowledgeBackup();
 const showCreateDialog = ref(false);
+const { visible: pageShowCreateDialog } = usePageOverlay(showCreateDialog);
 const searchQuery = ref("");
 const contentMatchedRecallIds = ref<Set<string>>(new Set());
 const isSearchingContent = ref(false);
@@ -558,7 +560,7 @@ const formatTokens = (num: number) => {
 
     <!-- 创建对话框 -->
     <el-dialog
-      v-model="showCreateDialog"
+      v-model="pageShowCreateDialog"
       title="创建思绪集"
       width="400px"
       append-to-body

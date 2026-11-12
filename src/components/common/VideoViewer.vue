@@ -19,6 +19,7 @@
     <transition name="fade">
       <div
         v-if="visible"
+        v-show="isVisible"
         class="video-viewer-overlay"
         :style="{ zIndex }"
         @click.self="handleClose"
@@ -56,6 +57,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { usePageActivity } from "@/composables/usePageActivity";
 import { useOverlayZIndex } from "@/composables/useDialogZIndex";
 import { useOverlayFocus } from "@/composables/useOverlayFocus";
 import { X } from "lucide-vue-next";
@@ -73,9 +75,11 @@ const emit = defineEmits<{
   (e: "close"): void;
 }>();
 
-const { zIndex } = useOverlayZIndex(() => props.visible);
+const isPageActive = usePageActivity();
+const isVisible = computed(() => props.visible && isPageActive.value);
+const { zIndex } = useOverlayZIndex(() => isVisible.value);
 const overlayRef = ref<HTMLElement | null>(null);
-const { isTopmost } = useOverlayFocus(overlayRef, () => props.visible);
+const { isTopmost } = useOverlayFocus(overlayRef, () => isVisible.value);
 
 const displayTitle = computed(() => {
   if (props.title) return props.title;
@@ -98,7 +102,7 @@ function handleClose() {
 // 播放器先处理全屏退出，剩余 Escape 再关闭当前预览。
 function handleGlobalKeydown(e: KeyboardEvent) {
   if (
-    props.visible &&
+    isVisible.value &&
     e.key === "Escape" &&
     !e.defaultPrevented &&
     isTopmost() &&

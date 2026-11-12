@@ -282,7 +282,7 @@
     </div>
 
     <el-drawer
-      v-model="showList"
+      v-model="pageShowList"
       title="字幕列表"
       direction="rtl"
       size="min(92vw, 1100px)"
@@ -304,6 +304,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { computed, ref, watch } from "vue";
 import { convertFileSrc } from "@/platform/native/core";
 import {
@@ -373,6 +374,7 @@ const currentTimeMs = ref(0);
 const selectedId = ref<string | null>(null);
 const inspectorTab = ref("settings");
 const showList = ref(false);
+const { visible: pageShowList } = usePageOverlay(showList);
 const roiAspectLocked = ref(false);
 const maskOpacity = ref(0.5);
 

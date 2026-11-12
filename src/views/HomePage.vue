@@ -58,7 +58,7 @@
     />
 
     <el-dialog
-      v-model="replacementDialogVisible"
+      v-model="pageReplacementDialogVisible"
       title="选择要替换的快捷工具"
       width="420px"
       append-to-body
@@ -94,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { computed, onMounted, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
 import { useRouter } from "vue-router";
@@ -120,6 +121,9 @@ const quickManageVisible = ref(false);
 const quickAccessDragTools = ref<ToolConfig[]>([]);
 const managerPinnedTools = ref<ToolConfig[]>([]);
 const replacementDialogVisible = ref(false);
+const { visible: pageReplacementDialogVisible } = usePageOverlay(
+  replacementDialogVisible
+);
 const replacementCandidate = ref<ToolConfig | null>(null);
 const replacementPath = ref("");
 

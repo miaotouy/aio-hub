@@ -397,7 +397,7 @@
       <!-- ===== 各类对话框 ===== -->
       <!-- 新增分支对话框 -->
       <el-dialog
-        v-model="showCreateBranchDialog"
+        v-model="pageShowCreateBranchDialog"
         title="新建分支"
         width="400px"
         :lock-scroll="false"
@@ -433,7 +433,7 @@
 
       <!-- 存入 Stash 对话框 -->
       <el-dialog
-        v-model="showSaveStashDialog"
+        v-model="pageShowSaveStashDialog"
         title="保存工作区修改到 Stash"
         width="420px"
         :lock-scroll="false"
@@ -464,6 +464,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { getBrowserClipboard } from "@/platform/browser";
 
 import CreateTagDialog from "./CreateTagDialog.vue";
@@ -537,12 +538,14 @@ const filteredTags = computed(() => {
 });
 
 const showCreateBranchDialog = ref(false);
+const { visible: pageShowCreateBranchDialog } = usePageOverlay(showCreateBranchDialog);
 const newBranchName = ref("");
 const newBranchStartPoint = ref("");
 
 const showCreateTagDialog = ref(false);
 
 const showSaveStashDialog = ref(false);
+const { visible: pageShowSaveStashDialog } = usePageOverlay(showSaveStashDialog);
 const stashMessage = ref("");
 const stashIncludeUntracked = ref(true);
 

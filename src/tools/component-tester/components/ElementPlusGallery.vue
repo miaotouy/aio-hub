@@ -450,7 +450,7 @@
           <el-button @click="nativeDialogVisible = true"
             >打开 el-dialog</el-button
           >
-          <el-dialog v-model="nativeDialogVisible" title="提示" width="500">
+          <el-dialog v-model="pageNativeDialogVisible" title="提示" width="500">
             <span>这是一段信息（el-dialog）</span>
             <template #footer>
               <div class="dialog-footer">
@@ -469,7 +469,7 @@
       <h2 class="section-title">抽屉 Drawer</h2>
       <el-button @click="drawerVisible = true">打开抽屉</el-button>
       <el-drawer
-        v-model="drawerVisible"
+        v-model="pageDrawerVisible"
         title="我是标题"
         direction="rtl"
         size="30%"
@@ -575,6 +575,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { ref } from "vue";
 import InfoCard from "@/components/common/InfoCard.vue";
 import {
@@ -607,7 +608,10 @@ const collapseValue = ref(["1"]);
 // 对话框和抽屉
 const dialogVisible = ref(false);
 const nativeDialogVisible = ref(false);
+const { visible: pageNativeDialogVisible } =
+  usePageOverlay(nativeDialogVisible);
 const drawerVisible = ref(false);
+const { visible: pageDrawerVisible } = usePageOverlay(drawerVisible);
 
 // 分页
 const currentPage = ref(1);

@@ -15,7 +15,8 @@
 -->
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { usePageOverlay } from "@/composables/usePageOverlay";
+import { computed, ref, watch } from "vue";
 import { customMessage } from "@/utils/customMessage";
 
 interface Props {
@@ -28,6 +29,12 @@ const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;
   (e: "confirm", newName: string): void;
 }>();
+const { visible: pageVisible, active: isPageActive } = usePageOverlay(
+  computed({
+    get: () => props.modelValue,
+    set: (value: boolean) => emit("update:modelValue", value),
+  })
+);
 
 const newSessionName = ref(props.initialName);
 
@@ -55,13 +62,12 @@ const handleCancel = () => {
 
 <template>
   <el-dialog
-    :model-value="modelValue"
-    @update:model-value="emit('update:modelValue', $event)"
+    v-model="pageVisible"
     title="重命名会话"
     width="400px"
     :lock-scroll="false"
     append-to-body
-    @close="handleCancel"
+    @close="isPageActive && handleCancel()"
   >
     <el-input
       v-model="newSessionName"

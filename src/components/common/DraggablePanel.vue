@@ -18,7 +18,7 @@
   <Teleport to="body">
     <div
       v-if="destroyOnClose ? modelValue : modelValue || hasOpened"
-      v-show="modelValue"
+      v-show="isVisible"
       ref="panelRef"
       class="draggable-panel"
       data-overlay-layer
@@ -64,6 +64,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from "vue";
 import { useDraggable, useWindowSize, useStorage } from "@vueuse/core";
+import { usePageActivity } from "@/composables/usePageActivity";
 import { Minus, Square, X } from "lucide-vue-next";
 import {
   getMaxDialogZIndex,
@@ -266,7 +267,9 @@ const initResize = (e: MouseEvent) => {
   document.body.style.cursor = "se-resize";
 };
 
-const { zIndex, bringToFront } = useOverlayZIndex(() => props.modelValue);
+const isPageActive = usePageActivity();
+const isVisible = computed(() => props.modelValue && isPageActive.value);
+const { zIndex, bringToFront } = useOverlayZIndex(() => isVisible.value);
 function raisePanel() {
   if (zIndex.value < getMaxDialogZIndex()) bringToFront();
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { ChatMessageNode } from "../../types";
+import { getMessagePerformanceMetadata } from "../../utils/messagePerformance";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 const props = defineProps<{
   message: ChatMessageNode;
@@ -24,13 +25,13 @@ const performanceStats = computed(() => {
   )
     return [];
   const stats: { label: string; value: string }[] = [];
-  if (
-    metadata.tokensPerSecond !== undefined &&
-    Number.isFinite(metadata.tokensPerSecond)
-  ) {
+  const tokensPerSecond =
+    metadata.tokensPerSecond ??
+    getMessagePerformanceMetadata(metadata).tokensPerSecond;
+  if (tokensPerSecond !== undefined && Number.isFinite(tokensPerSecond)) {
     stats.push({
       label: "生成速度",
-      value: String(metadata.tokensPerSecond) + " t/s",
+      value: String(tokensPerSecond) + " t/s",
     });
   }
   if (

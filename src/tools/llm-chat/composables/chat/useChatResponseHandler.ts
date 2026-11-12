@@ -33,6 +33,7 @@ import {
   completeAndDisposeStreamingMessageSource,
 } from "./useStreamingMessageSources";
 import { buildEmptyResponseDiagnostic } from "./emptyResponseDiagnostics";
+import { getMessagePerformanceMetadata } from "../../utils/messagePerformance";
 import {
   ContinuationTextFilter,
   mergeContinuationText,
@@ -435,7 +436,8 @@ export function useChatResponseHandler() {
     const node = session.nodes[nodeId];
     if (!node) return;
 
-    updateReasoningActivity(node, false);
+    const requestEndTime = node.metadata?.requestEndTime ?? Date.now();
+    updateReasoningActivity(node, false, requestEndTime);
 
     const rState = reasoningUpdateBuffer.get(nodeId);
     if (rState && rState.buffer) {
@@ -464,7 +466,10 @@ export function useChatResponseHandler() {
     node.status = "complete";
     node.metadata = {
       ...node.metadata,
-      requestEndTime: node.metadata?.requestEndTime ?? Date.now(),
+      requestEndTime,
+      ...(node.role === "assistant"
+        ? getMessagePerformanceMetadata({ ...node.metadata, requestEndTime })
+        : {}),
     };
     completeAndDisposeStreamingMessageSource(nodeId);
   };
@@ -602,23 +607,12 @@ export function useChatResponseHandler() {
       responseReasoningContent: response.reasoningContent,
     });
 
-    // 使用 API 返回的 completionTokens 作为助手消息的 contentTokens
-    const contentTokens = response.usage?.completionTokens;
-
-    // 计算性能指标
     const requestEndTime = finalNode.metadata?.requestEndTime ?? Date.now();
-    let tokensPerSecond: number | undefined;
-
-    if (contentTokens && finalNode.metadata?.firstTokenTime) {
-      // 计算生成时间（毫秒）
-      const generationTime = requestEndTime - finalNode.metadata.firstTokenTime;
-      if (generationTime > 0) {
-        // 计算 tokens/s
-        tokensPerSecond = (contentTokens / generationTime) * 1000;
-        // 保留两位小数
-        tokensPerSecond = Math.round(tokensPerSecond * 100) / 100;
-      }
-    }
+    const { contentTokens, tokensPerSecond } = getMessagePerformanceMetadata({
+      ...finalNode.metadata,
+      usage: response.usage,
+      requestEndTime,
+    });
 
     finalNode.metadata = {
       ...finalNode.metadata,

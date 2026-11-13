@@ -156,6 +156,10 @@ export async function runChatOrchestration(
 
       let responseContent: string;
 
+      // 压缩等内部准备阶段与真正的模型请求使用不同的等待标签。
+      currentAssistantNode.metadata ??= {};
+      currentAssistantNode.metadata.waitingPhase = "preparing";
+
       // 2. 执行单次请求（重新解析模式下第一轮跳过）
       if (isReparse && iterationCount === 1) {
         // 重新解析模式：直接使用现有内容
@@ -497,6 +501,7 @@ export async function runChatOrchestration(
               reasoningDurationMs: undefined,
               firstTokenTime: undefined,
               requestStartTime: Date.now(),
+              waitingPhase: "preparing",
               requestEndTime: undefined,
               usage: undefined,
               contentTokens: undefined,

@@ -341,6 +341,15 @@ export async function executeSingleNode(
     };
   });
 
+  // 上下文管道、转写和压缩完成后，才进入等待外部返回的阶段。
+  assistantNode.metadata = {
+    ...assistantNode.metadata,
+    waitingPhase: "requesting",
+  };
+  if (session.nodes?.[assistantNode.id]) {
+    session.nodes[assistantNode.id].metadata = assistantNode.metadata;
+  }
+
   const maxRetries = ports.getSettings().requestSettings.maxRetries;
   const retryInterval = ports.getSettings().requestSettings.retryInterval;
   const retryMode = ports.getSettings().requestSettings.retryMode;
@@ -476,6 +485,7 @@ export async function executeSingleNode(
             modelIcon: original?.modelIcon,
             providerType: original?.providerType,
             requestParameters: original?.requestParameters,
+            waitingPhase: "requesting",
             ...(segment.kind === "assistant"
               ? {
                   requestStartTime:

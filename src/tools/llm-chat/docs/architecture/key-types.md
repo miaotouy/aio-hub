@@ -90,6 +90,7 @@
 ### 1.12 排队与停止
 
 - `isQueued`（排队占位节点的运行时调度标记；节点克隆时会被剥离）
+- `waitingPhase`（`preparing` 表示压缩、转写、上下文构建等内部准备；`requesting` 表示请求已发出但尚未收到模型返回；节点克隆时会被剥离）
 - 排队节点被用户停止时，节点状态写为 `error` 并将 `metadata.error` 置为 `"队列已停止"`，同时删除 `isQueued`；`getMessageStatusPresentation()` 会把该原因归一显示为「已停止」。
 
 ## 2. `ChatSessionIndex` — 会话的轻量索引

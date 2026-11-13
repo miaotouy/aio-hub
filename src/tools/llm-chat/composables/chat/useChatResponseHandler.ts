@@ -267,7 +267,10 @@ export function useChatResponseHandler() {
         ...node.metadata,
         firstTokenTime: Date.now(),
       };
-      // 收到首个内容后，从「等待中」进入「生成中」
+      // 收到首个内容后，从等待态进入「生成中」，等待阶段已经结束。
+      if (node.metadata?.waitingPhase) {
+        node.metadata = { ...node.metadata, waitingPhase: undefined };
+      }
       node.status = "generating";
     }
 

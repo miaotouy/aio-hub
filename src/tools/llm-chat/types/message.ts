@@ -19,7 +19,12 @@ import type {
 } from "@aiohub/agent-preset-core";
 import type { LocalMediaReference } from "@/types/local-media";
 import type { Asset } from "@/types/asset-management";
-import type { MessageRole, MessageStatus, MessageType } from "./common";
+import type {
+  MessageRole,
+  MessageStatus,
+  MessageType,
+  MessageWaitingPhase,
+} from "./common";
 import type { SessionVariableSnapshot } from "./sessionVariable";
 import type { LlmReasoningArtifact } from "@/llm-apis/common";
 import type { KnowledgeReference } from "@/tools/knowledge-base/types";
@@ -288,6 +293,8 @@ export interface ChatMessageNode {
     modelDisplayName?: string;
     /** 是否是排队待生成的节点 */
     isQueued?: boolean;
+    /** waiting 生命周期的运行阶段：内部准备或等待模型返回。 */
+    waitingPhase?: MessageWaitingPhase;
     /** 是否被截断 */
     isTruncated?: boolean;
     /** 错误信息 */

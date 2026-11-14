@@ -6,6 +6,8 @@ let runtime: ReturnType<typeof createSessionRuntimeManager>;
 const mocks = vi.hoisted(() => ({
   addNodeToSession: vi.fn(),
   calculateTokens: vi.fn(),
+  contextStats: undefined as
+    { totalTokenCount: number; savedTokenCount?: number } | undefined,
   getAgentById: vi.fn(),
   getNodePath: vi.fn(),
   persistSessions: vi.fn(),
@@ -47,7 +49,7 @@ vi.mock("@/tools/agent-manager/stores/agentStore", () => ({
 vi.mock("@/tools/llm-chat/stores/llmChatStore", () => ({
   useLlmChatStore: () => ({
     ...runtime,
-    contextStats: undefined,
+    contextStats: mocks.contextStats,
     persistSessions: mocks.persistSessions,
     refreshContextStats: mocks.refreshContextStats,
   }),
@@ -90,6 +92,7 @@ function deferred<T>() {
 describe("useContextCompressor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.contextStats = undefined;
     runtime = createSessionRuntimeManager({
       sessionDetailMap: ref(new Map()),
       currentSessionId: ref(null),
@@ -326,6 +329,43 @@ describe("useContextCompressor", () => {
     });
     return detail;
   };
+
+  it.each([
+    { totalTokenCount: 4, savedTokenCount: 214, expected: true },
+    { totalTokenCount: 101, savedTokenCount: undefined, expected: true },
+    { totalTokenCount: 4, savedTokenCount: undefined, expected: false },
+  ])(
+    "checks the automatic summary threshold before token limiting: %j",
+    async ({ totalTokenCount, savedTokenCount, expected }) => {
+      const detail = prepareToolHistory();
+      mocks.contextStats = { totalTokenCount, savedTokenCount };
+      Object.assign(mocks.getAgentById().parameters.contextCompression, {
+        countUnit: "user-turn",
+        minHistoryCount: 1,
+        tokenThreshold: 100,
+      });
+      const { checkAndCompress } = useContextCompressor();
+
+      const result = await checkAndCompress({} as any, detail as any);
+
+      expect(result.success).toBe(expected);
+      expect(mocks.sendRequest).toHaveBeenCalledTimes(expected ? 1 : 0);
+      if (expected) {
+        expect(detail.nodes["new-summary"].metadata.compressedNodeIds).toEqual([
+          "u1",
+          "a1",
+          "t1",
+          "a2",
+          "u2",
+          "v1",
+          "vt",
+          "v2",
+        ]);
+      } else {
+        expect(result.failureReason).toBe("not-needed");
+      }
+    }
+  );
 
   // 保护提交契约：请求与 Token 统计完成前保持原树；取消和失败只更新运行态。
   it("shares the task and commits a single completed summary before releasing waiters", async () => {

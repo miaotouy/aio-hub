@@ -163,8 +163,9 @@ export function useContextCompressor() {
     const storeStats = llmChatStore.contextStats;
 
     if (storeStats && storeStats.totalTokenCount !== undefined) {
-      // 使用 Store 的精确 Token 数
-      totalTokens = storeStats.totalTokenCount;
+      // 压缩阈值基于截断前的上下文，避免历史先被限额裁掉后始终无法触发摘要。
+      totalTokens =
+        storeStats.totalTokenCount + (storeStats.savedTokenCount ?? 0);
     } else {
       // Fallback: 如果 Store 还没准备好，使用本地简单估算
       logger.debug("Store 上下文统计未就绪，使用本地简单估算");

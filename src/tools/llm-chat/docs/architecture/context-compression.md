@@ -75,6 +75,8 @@
 - `compressedNodeIds: string[]`：记录被此节点“遮罩”隐藏的消息 ID 列表。
 - `originalTokenCount` / `originalMessageCount`：记录压缩前的统计数据。
 
+摘要正文保持原样存储，供展示、编辑与增量摘要使用。会话加载器在 HTML 转换后为发送上下文中的摘要添加 `[上下文摘要]` 标识与成对 Markdown 围栏；围栏长度超过摘要正文中的最长连续反引号，使角色转换、同角色合并后仍保留摘要与相邻消息的边界。此处理同时适用于已有摘要节点。
+
 ### 3.2. UI 表现
 
 - **消息列表**：[`MessageList.vue`](src/tools/llm-chat/components/message/MessageList.vue) 会计算当前路径上所有被隐藏的节点 ID。

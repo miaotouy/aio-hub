@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { formatFencedText } from "./fencedText";
 
 import type { VirtualTextAttachment } from "../types/virtual-attachment";
 
@@ -75,11 +76,7 @@ export function formatVirtualTextAttachment(
   attachment: Pick<VirtualTextAttachment, "title" | "text">
 ): string {
   const title = attachment.title.replace(/[\r\n\[\]]/g, " ");
-  const runs = attachment.text.match(/`+/g) ?? [];
-  let fenceLength = 3;
-  for (const run of runs) fenceLength = Math.max(fenceLength, run.length + 1);
-  const fence = "`".repeat(fenceLength);
-  return `\n[文本附件: ${title}]\n${fence}\n${attachment.text}\n${fence}\n`;
+  return `\n[文本附件: ${title}]\n${formatFencedText(attachment.text)}\n`;
 }
 
 export function formatVirtualAttachments(

@@ -36,6 +36,15 @@ const emit = defineEmits<{
  * 格式化同步
  */
 const notifyChange = () => {
+  for (const parameter of props.method.parameters) {
+    if (
+      !parameter.required &&
+      parameter.type?.toLowerCase() === "number" &&
+      props.modelValue[parameter.name] == null
+    ) {
+      delete props.modelValue[parameter.name];
+    }
+  }
   emit("update:modelValue", props.modelValue);
   emit("change");
 };

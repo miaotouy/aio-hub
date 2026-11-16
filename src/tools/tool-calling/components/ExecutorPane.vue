@@ -78,7 +78,7 @@ const applyMethod = (group: any, method: any) => {
     } else {
       switch (p.type?.toLowerCase()) {
         case "number":
-          argsObj[p.name] = 0;
+          if (p.required) argsObj[p.name] = 0;
           break;
         case "boolean":
           argsObj[p.name] = false;

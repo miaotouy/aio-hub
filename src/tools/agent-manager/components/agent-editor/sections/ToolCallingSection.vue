@@ -345,7 +345,6 @@ const pasteAllToolSettings = async () => {
               <el-input-number
                 v-model="editForm.toolCallConfig.maxIterations"
                 :min="1"
-                :max="10"
                 size="small"
               />
             </el-form-item>

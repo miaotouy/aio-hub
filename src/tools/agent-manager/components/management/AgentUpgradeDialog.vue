@@ -370,12 +370,25 @@ const buildMergeUpdate = (
 
 /** 构建替换模式的更新数据 */
 const buildOverwriteUpdate = (
+  currentAgent: ChatAgent,
   newConfig: Partial<ChatAgent>,
   importedWorldbookIds: string[]
 ): Partial<ChatAgent> => {
   const { id, createdAt, lastUsedAt, ...rest } = newConfig as any;
   return {
     ...rest,
+    profileId:
+      newConfig.subAgentConfig?.modelBindingMode === "inherit_caller"
+        ? (newConfig.profileId ?? currentAgent.profileId)
+        : newConfig.profileId?.trim()
+          ? newConfig.profileId
+          : currentAgent.profileId,
+    modelId:
+      newConfig.subAgentConfig?.modelBindingMode === "inherit_caller"
+        ? (newConfig.modelId ?? currentAgent.modelId)
+        : newConfig.modelId?.trim()
+          ? newConfig.modelId
+          : currentAgent.modelId,
     worldbookIds: [
       ...new Set([...(newConfig.worldbookIds || []), ...importedWorldbookIds]),
     ],
@@ -410,7 +423,7 @@ const handleConfirm = async () => {
     const updatedData =
       upgradeStrategy.value === "merge"
         ? buildMergeUpdate(currentAgent, newConfig, importedWorldbookIds)
-        : buildOverwriteUpdate(newConfig, importedWorldbookIds);
+        : buildOverwriteUpdate(currentAgent, newConfig, importedWorldbookIds);
 
     // 3. 执行更新
     agentStore.updateAgent(currentAgent.id, updatedData);
@@ -480,6 +493,9 @@ const previewInfo = computed(() => {
         element-loading-text="正在解析配置..."
         :multiple="true"
         :accept="['.json', '.yaml', '.yml', '.zip', '.png', '.jpg', '.jpeg']"
+        emit-files
+        prefer-file-objects
+        @files-dropped="handleFileUpload"
         @drop="handlePathsDropped"
         bare
       >

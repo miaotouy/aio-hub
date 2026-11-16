@@ -128,6 +128,22 @@ function migrateCoreDetails(agent: ChatAgent): boolean {
     agent.toolCallConfig = JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG));
     changed = true;
   }
+  if (
+    agent.toolCallConfig &&
+    typeof agent.toolCallConfig === "object" &&
+    !Array.isArray(agent.toolCallConfig)
+  ) {
+    for (const [key, value] of Object.entries(DEFAULT_TOOL_CALL_CONFIG)) {
+      if (
+        (agent.toolCallConfig as unknown as Record<string, unknown>)[key] ===
+        undefined
+      ) {
+        (agent.toolCallConfig as unknown as Record<string, unknown>)[key] =
+          structuredClone(value);
+        changed = true;
+      }
+    }
+  }
   if (agent.subAgentConfig === undefined) {
     agent.subAgentConfig = JSON.parse(JSON.stringify(DEFAULT_SUB_AGENT_CONFIG));
     changed = true;

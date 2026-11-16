@@ -59,6 +59,27 @@ function legacyAgent(): ChatAgent {
 }
 
 describe("agent core detail migration", () => {
+  it("fills omitted tool settings while retaining explicit bindings and approval choices", () => {
+    const agent = legacyAgent();
+    migrateAgent(agent);
+    delete (
+      agent.toolCallConfig as Partial<NonNullable<ChatAgent["toolCallConfig"]>>
+    ).defaultAutoApprove;
+    agent.toolCallConfig!.autoApproveTools = { kept: true, manual: false };
+    expect(migrateAgent(agent)).toBe(true);
+    expect(agent.toolCallConfig).toMatchObject({
+      enabled: true,
+      mode: "manual",
+      timeout: 1000,
+      defaultAutoApprove: false,
+      autoApproveTools: { kept: true, manual: false },
+    });
+    expect(migrateAgent(agent)).toBe(false);
+    agent.toolCallConfig!.defaultAutoApprove = true;
+    migrateAgent(agent);
+    expect(agent.toolCallConfig!.defaultAutoApprove).toBe(true);
+  });
+
   it("fills fields missing from legacy agent files so they can be persisted", () => {
     const agent = {
       id: "legacy-core",

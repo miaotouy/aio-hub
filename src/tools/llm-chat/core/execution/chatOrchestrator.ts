@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/agent-manager/types/agent";
 import type {
   ChatSessionDetail,
   ChatMessageNode,
@@ -143,7 +144,9 @@ export async function runChatOrchestration(
   let iterationCount = 0;
   let activeToolNodeId: string | undefined;
   let stopReason: ChatOrchestrationResult["stopReason"];
-  const maxIterations = executionAgent.toolCallConfig?.maxIterations ?? 5;
+  const maxIterations =
+    executionAgent.toolCallConfig?.maxIterations ??
+    DEFAULT_TOOL_CALL_CONFIG.maxIterations;
 
   // 速率限制状态
   let lastRequestStartTime = 0;

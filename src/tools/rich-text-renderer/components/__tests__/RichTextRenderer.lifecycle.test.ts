@@ -10,6 +10,7 @@ import {
   nextTick,
   ref,
   provide,
+  shallowRef,
   type Ref,
 } from "vue";
 import {
@@ -20,7 +21,7 @@ import {
 } from "../../composables/useRendererDisplay";
 import CodeBlockNode from "../nodes/CodeBlockNode.vue";
 import VcpToolNode from "../nodes/VcpToolNode.vue";
-import { RICH_TEXT_CONTEXT_KEY } from "../../types";
+import { RICH_TEXT_CONTEXT_KEY, type StreamSource } from "../../types";
 import LlmThinkNode from "../nodes/LlmThinkNode.vue";
 import { provideRendererViewState } from "../../composables/useRendererViewState";
 import RichTextRenderer from "../../RichTextRenderer.vue";
@@ -757,8 +758,8 @@ it("defers collapsed reasoning and catches up on reopen while preserving the vie
   expect(wrapper.findComponent(RichTextRenderer).element).toBe(renderer);
 });
 
-// Batch payload must survive display regexes, HTML wrapping and CRLF normalization verbatim.
-it("renders opaque batch bytes while applying presentation rules to surrounding prose", async () => {
+// Literal batch display trims framing whitespace and preserves the inner payload.
+it("renders literal batch content while applying presentation rules to surrounding prose", async () => {
   const body =
     "\r\n<!DOCTYPE html><html><body>raw</body></html>\r\n<<<[TOOL_REQUEST]>>>\r\n";
   const state = host(
@@ -776,8 +777,55 @@ it("renders opaque batch bytes while applying presentation rules to surrounding 
   ];
   await settle();
   expect(state.renderer().get(".tool-batch-content").element.textContent).toBe(
-    body
+    body.trim()
   );
   expect(state.renderer().get("h2").text()).toBe("after");
   expect(state.renderer().text()).toContain("changed");
 });
+
+// The saved snapshot owns the text after a stream ends, including queued graphemes.
+it.each(["completion-first", "snapshot-first", "snapshot-already-provided"])(
+  "hands smoothed streaming text back to its final snapshot (%s)",
+  async (order) => {
+    let push!: (chunk: string) => void;
+    let complete!: () => void;
+    const finalText = "linux-partial";
+    const content = ref(order === "snapshot-already-provided" ? finalText : "");
+    const streaming = ref(true);
+    const source = shallowRef<StreamSource | undefined>({
+      subscribe(callback) {
+        push = callback;
+        return () => {};
+      },
+      onComplete(callback) {
+        complete = callback;
+        return () => {};
+      },
+    });
+    wrapper = mount(
+      defineComponent({
+        setup: () => () =>
+          h(RichTextRenderer, {
+            content: content.value,
+            streamSource: source.value,
+            isStreaming: streaming.value,
+            throttleEnabled: false,
+            enableEnterAnimation: false,
+          }),
+      })
+    );
+    push(finalText);
+    await settle();
+    if (order === "completion-first") {
+      complete();
+      await settle();
+    }
+    content.value = finalText;
+    source.value = undefined;
+    streaming.value = false;
+    await settle();
+    if (order !== "completion-first") complete();
+    await settle();
+    expect(wrapper.get("p").text()).toBe(finalText);
+  }
+);

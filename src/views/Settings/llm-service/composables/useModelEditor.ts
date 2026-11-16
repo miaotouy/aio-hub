@@ -22,7 +22,7 @@ import { mergeDiscoveredModelRouting } from "@aiohub/llm-core";
 import { fetchModelsFromApi } from "@/llm-apis/model-fetcher";
 import { customMessage } from "@/utils/customMessage";
 import type { Ref, ComputedRef } from "vue";
-import { ref } from "vue";
+import { getCurrentScope, onScopeDispose, ref, watch } from "vue";
 
 const errorHandler = createModuleErrorHandler("LlmServiceSettings/ModelEditor");
 
@@ -58,6 +58,27 @@ export function useModelEditor(
   const fetchedModels = ref<LlmModelInfo[]>([]);
   const fetchedRawResponse = ref<any>(null);
   const isFetchingModels = ref(false);
+  let fetchEpoch = 0;
+
+  watch(
+    () => editForm.value.id,
+    () => {
+      ++fetchEpoch;
+      isFetchingModels.value = false;
+      showModelDialog.value = false;
+      showBatchAddDialog.value = false;
+      showModelFetcherDialog.value = false;
+      editingModel.value = null;
+      isEditingModel.value = false;
+      fetchedModels.value = [];
+      fetchedRawResponse.value = null;
+    },
+    { flush: "sync" }
+  );
+  if (getCurrentScope())
+    onScopeDispose(() => {
+      ++fetchEpoch;
+    });
 
   // 手动添加默认进入批量添加（支持单/多模型输入），细粒度配置走列表中的单模型编辑
   const addModel = () => {
@@ -107,11 +128,12 @@ export function useModelEditor(
       return;
     }
 
+    const profile = JSON.parse(JSON.stringify(editForm.value)) as LlmProfile;
+    const epoch = ++fetchEpoch;
     isFetchingModels.value = true;
     try {
-      const { models, rawResponse } = await fetchModelsFromApi(
-        selectedProfile.value
-      );
+      const { models, rawResponse } = await fetchModelsFromApi(profile);
+      if (epoch !== fetchEpoch) return;
 
       if (models.length === 0) {
         customMessage.warning("未获取到任何模型");
@@ -128,9 +150,9 @@ export function useModelEditor(
       fetchedRawResponse.value = rawResponse;
       showModelFetcherDialog.value = true;
     } catch (error: any) {
-      errorHandler.error(error, "获取模型列表失败");
+      if (epoch === fetchEpoch) errorHandler.error(error, "获取模型列表失败");
     } finally {
-      isFetchingModels.value = false;
+      if (epoch === fetchEpoch) isFetchingModels.value = false;
     }
   };
 

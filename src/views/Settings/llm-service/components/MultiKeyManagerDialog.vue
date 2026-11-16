@@ -43,9 +43,16 @@ const props = defineProps<{
   modelValue: boolean;
   profile: LlmProfile;
   testLoading?: Record<string, boolean>;
+  batchTesting?: boolean;
 }>();
 
-const emit = defineEmits(["update:modelValue", "update:profile", "test-key"]);
+const emit = defineEmits([
+  "update:modelValue",
+  "update:profile",
+  "test-key",
+  "test-keys",
+  "cancel-test",
+]);
 
 const {
   getKeyStatuses,
@@ -218,20 +225,27 @@ const handleImport = () => {
   importText.value = "";
 };
 
-const handleBatchTest = async () => {
-  if (selectedKeys.value.length === 0 || !selectedTestModelId.value) return;
-
-  const keysToTest = [...selectedKeys.value];
-  customMessage.success(
-    `已开始批量测试 ${keysToTest.length} 个密钥，请稍候...`
-  );
-
-  for (const item of keysToTest) {
-    emit("test-key", { key: item.key, modelId: selectedTestModelId.value });
-    // 每次测试间隔 500ms，避免并发过高
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
+const handleBatchTest = () => {
+  if (
+    selectedKeys.value.length === 0 ||
+    !selectedTestModelId.value ||
+    props.batchTesting
+  )
+    return;
+  emit("test-keys", {
+    keys: selectedKeys.value.map((item) => item.key),
+    modelId: selectedTestModelId.value,
+  });
 };
+
+watch(
+  () => [props.modelValue, props.profile.id],
+  () => {
+    emit("cancel-test");
+    selectedKeys.value = [];
+  },
+  { flush: "sync" }
+);
 
 const handleBatchDelete = () => {
   if (selectedKeys.value.length === 0) return;
@@ -475,6 +489,12 @@ const maskKey = (key: string) => {
           </el-select>
         </div>
         <div class="right">
+          <el-button
+            v-if="batchTesting"
+            size="small"
+            @click="emit('cancel-test')"
+            >停止测试</el-button
+          >
           <div class="btn-group">
             <el-tooltip content="批量导入密钥" placement="top">
               <el-button :icon="Upload" @click="isImporting = true" />
@@ -500,7 +520,11 @@ const maskKey = (key: string) => {
                 >
                 <el-dropdown-item
                   :icon="VideoPlay"
-                  :disabled="selectedKeys.length === 0 || !selectedTestModelId"
+                  :disabled="
+                    batchTesting ||
+                    selectedKeys.length === 0 ||
+                    !selectedTestModelId
+                  "
                   @click="handleBatchTest"
                 >
                   测试选中 ({{ selectedKeys.length }})

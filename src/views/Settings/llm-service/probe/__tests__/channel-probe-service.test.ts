@@ -309,3 +309,43 @@ describe("createChannelProbeService", () => {
     expect(chat).not.toHaveBeenCalled();
   });
 });
+
+it("binds delayed key requests to the original destination and stops remaining dispatch on cancellation", async () => {
+  const source = profile();
+  const keys = ["fixture-key-a", "fixture-key-b", "fixture-key-c"];
+  const received: Array<{ url: string; key: string | undefined }> = [];
+  let finishFirst!: () => void;
+  const controller = new AbortController();
+  const service = createChannelProbeService({
+    adapters: {
+      openai: {
+        chat: async (value) => {
+          received.push({ url: value.baseUrl, key: value.apiKeys[0] });
+          if (received.length === 1)
+            await new Promise<void>((resolve) => {
+              finishFirst = resolve;
+            });
+          else controller.abort();
+          return { content: "ok" };
+        },
+      },
+    },
+  });
+  const pending = service.probeKeyBatch({
+    profile: source,
+    modelId: "chat-model",
+    keys,
+    signal: controller.signal,
+  });
+  await vi.waitFor(() => expect(received).toHaveLength(1));
+  source.id = "other-channel";
+  source.baseUrl = "https://other.example";
+  source.apiKeys = ["other-key"];
+  keys[1] = "mutated-key";
+  finishFirst();
+  await pending;
+  expect(received).toEqual([
+    { url: "https://example.com", key: "fixture-key-a" },
+    { url: "https://example.com", key: "fixture-key-b" },
+  ]);
+});

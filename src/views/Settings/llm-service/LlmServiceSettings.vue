@@ -121,6 +121,9 @@ const {
   testConnection,
   handleTestModel,
   handleTestKey,
+  handleBatchTestKeys,
+  isKeyBatchTesting,
+  cancelKeyBatchTest,
   handleBatchTestModels,
   cancelBatchTest,
 } = useConnectionTest(editForm, selectedProfile);
@@ -1146,8 +1149,11 @@ const networkSettingSummary = computed(() => {
       v-model="showMultiKeyManager"
       :profile="editForm"
       :test-loading="keyTestLoading"
+      :batch-testing="isKeyBatchTesting"
       @update:profile="saveProfile"
       @test-key="handleTestKey"
+      @test-keys="handleBatchTestKeys"
+      @cancel-test="cancelKeyBatchTest"
     />
 
     <!-- 说明弹窗 -->

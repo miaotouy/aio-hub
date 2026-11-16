@@ -16,10 +16,11 @@
  * Profile 编辑器核心逻辑
  * 负责 Profile 的选择、创建、删除、自动保存
  */
-import { ref, computed, watch, getCurrentScope, onScopeDispose } from "vue";
+import { ref, computed, watch } from "vue";
 import { normalizeDeepSeekProfile } from "@aiohub/llm-core";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
+import { useDraftAutoSave } from "@/composables/useDraftAutoSave";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { providerTypes } from "@/config/llm-providers";
 import type { LlmProfile, ProviderType } from "@/types/llm-profiles";
@@ -29,6 +30,8 @@ import { getAioDefaultHeaders } from "../config/customHeadersPresets";
 export function useProfileEditor() {
   const {
     profiles,
+    revision,
+    refreshProfiles,
     saveProfile,
     deleteProfile,
     toggleProfileEnabled,
@@ -37,25 +40,39 @@ export function useProfileEditor() {
     updateProfilesOrder,
   } = useLlmProfiles();
 
-  // 防抖保存的计时器
-  let saveTimer: ReturnType<typeof setTimeout> | null = null;
-
   // 当前选中的配置
   const selectedProfileId = ref<string | null>(null);
 
   // 编辑表单
-  const editForm = ref<LlmProfile>({
-    id: "",
-    name: "",
-    type: "openai",
-    baseUrl: "",
-    apiKeys: [],
-    enabled: true,
-    models: [],
-    relaxIdCerts: false,
-    http1Only: true,
-    options: {},
+  const session = useDraftAutoSave<LlmProfile, string | null>({
+    save: saveProfile,
+    normalize: normalizeDeepSeekProfile,
+    validate: (value) => {
+      if (!value.name.trim()) {
+        customMessage.error("请输入渠道名称");
+        return false;
+      }
+      if (value.type !== "virtual" && !value.baseUrl.trim()) {
+        customMessage.error("请输入 API 地址");
+        return false;
+      }
+      return true;
+    },
+    initial: {
+      id: "",
+      name: "",
+      type: "openai",
+      baseUrl: "",
+      apiKeys: [],
+      enabled: true,
+      models: [],
+      relaxIdCerts: false,
+      http1Only: true,
+      options: {},
+    },
   });
+
+  const editForm = session.draft;
 
   // API Key 输入处理
   const apiKeyInput = ref("");
@@ -63,7 +80,10 @@ export function useProfileEditor() {
   // 计算当前选中的配置
   const selectedProfile = computed(() => {
     if (!selectedProfileId.value) return null;
-    return profiles.value.find((p) => p.id === selectedProfileId.value) || null;
+    return (
+      profiles.value.find((p) => p.id === selectedProfileId.value) ||
+      (editForm.value.id === selectedProfileId.value ? editForm.value : null)
+    );
   });
 
   // 当前渠道特有的配置字段
@@ -125,50 +145,76 @@ export function useProfileEditor() {
     { deep: true }
   );
 
-  // 选择配置
+  const flushPendingSave = () => {
+    void session.flush();
+  };
   const selectProfile = (profileId: string) => {
-    if (saveTimer) {
-      clearTimeout(saveTimer);
-      saveTimer = null;
-      saveCurrentProfile();
-    }
+    flushPendingSave();
+    const profile = profiles.value.find((item) => item.id === profileId);
     selectedProfileId.value = profileId;
-    const profile = profiles.value.find((p) => p.id === profileId);
     if (profile) {
-      editForm.value = JSON.parse(JSON.stringify(profile));
-      apiKeyInput.value = profile.apiKeys.join(", ");
+      session.open(profile, revision.value);
+      apiKeyInput.value = editForm.value.apiKeys.join(", ");
+    }
+  };
+  watch(revision, () => {
+    const profile = profiles.value.find(
+      (item) => item.id === selectedProfileId.value
+    );
+    if (profile) session.sync(profile, revision.value);
+  });
+  const refreshCurrentProfile = async () => {
+    session.cancelPending();
+    try {
+      await refreshProfiles();
+    } catch {
+      return;
+    }
+    const profile = profiles.value.find(
+      (item) => item.id === selectedProfileId.value
+    );
+    if (profile) session.open(profile, revision.value, false, true);
+    else {
+      session.discard();
+      selectedProfileId.value = profiles.value[0]?.id || null;
+      if (selectedProfileId.value) selectProfile(selectedProfileId.value);
+      else apiKeyInput.value = "";
     }
   };
 
   // 创建新配置 - 从空白开始
   const createNewProfile = (virtual = false) => {
-    console.log("[useProfileEditor] Creating new blank profile");
+    flushPendingSave();
     const newName = `未命名渠道 ${profiles.value.length + 1}`;
-    editForm.value = {
-      id: generateId(),
-      name: newName,
-      type: virtual ? "virtual" : "openai",
-      baseUrl: virtual ? "" : "https://api.openai.com",
-      ...(virtual
-        ? {
-            virtualChannel: {
-              mode: "failover" as const,
-              members: [],
-              maxAttempts: 3,
-              totalTimeoutMs: 180000,
-              attemptTimeoutMs: 60000,
-            },
-          }
-        : {}),
-      apiKeys: [],
-      enabled: true,
-      models: [],
-      networkStrategy: "auto",
-      relaxIdCerts: false,
-      http1Only: true,
-      options: {},
-      customHeaders: getAioDefaultHeaders(),
-    };
+    session.open(
+      {
+        id: generateId(),
+        name: newName,
+        type: virtual ? "virtual" : "openai",
+        baseUrl: virtual ? "" : "https://api.openai.com",
+        ...(virtual
+          ? {
+              virtualChannel: {
+                mode: "failover" as const,
+                members: [],
+                maxAttempts: 3,
+                totalTimeoutMs: 180000,
+                attemptTimeoutMs: 60000,
+              },
+            }
+          : {}),
+        apiKeys: [],
+        enabled: true,
+        models: [],
+        networkStrategy: "auto",
+        relaxIdCerts: false,
+        http1Only: true,
+        options: {},
+        customHeaders: getAioDefaultHeaders(),
+      },
+      revision.value,
+      true
+    );
     apiKeyInput.value = "";
     selectedProfileId.value = editForm.value.id;
 
@@ -178,74 +224,14 @@ export function useProfileEditor() {
 
   // 从预设创建配置
   const createFromPresetTemplate = (preset: LlmPreset) => {
-    editForm.value = createFromPreset(preset);
+    flushPendingSave();
+    session.open(createFromPreset(preset), revision.value, true);
     apiKeyInput.value = "";
     selectedProfileId.value = editForm.value.id;
     saveCurrentProfile();
   };
 
-  // 保存配置（验证并保存）
-  const saveCurrentProfile = () => {
-    if (!editForm.value.name.trim()) {
-      customMessage.error("请输入渠道名称");
-      return false;
-    }
-    if (editForm.value.type !== "virtual" && !editForm.value.baseUrl.trim()) {
-      customMessage.error("请输入 API 地址");
-      return false;
-    }
-    const normalized = normalizeDeepSeekProfile(editForm.value);
-    if (JSON.stringify(normalized) !== JSON.stringify(editForm.value))
-      editForm.value = normalized;
-    const existing = profiles.value.find(
-      (profile) => profile.id === normalized.id
-    );
-    if (existing && JSON.stringify(existing) === JSON.stringify(normalized))
-      return true;
-    // The store reports persistence failures; the timer owns this promise's rejection.
-    void saveProfile(normalized).catch(() => {});
-    return true;
-  };
-
-  // 防抖自动保存
-  const autoSave = () => {
-    if (saveTimer) {
-      clearTimeout(saveTimer);
-    }
-    saveTimer = setTimeout(() => {
-      saveTimer = null;
-      saveCurrentProfile();
-    }, 1000);
-  };
-
-  // 监听表单变化，自动保存
-  watch(
-    () => editForm.value,
-    () => {
-      if (!selectedProfileId.value) return;
-      const existing = profiles.value.find(
-        (profile) => profile.id === editForm.value.id
-      );
-      if (
-        existing &&
-        JSON.stringify(existing) === JSON.stringify(editForm.value)
-      ) {
-        if (saveTimer) clearTimeout(saveTimer);
-        saveTimer = null;
-        return;
-      }
-      autoSave();
-    },
-    { deep: true }
-  );
-
-  if (getCurrentScope())
-    onScopeDispose(() => {
-      if (!saveTimer) return;
-      clearTimeout(saveTimer);
-      saveTimer = null;
-      saveCurrentProfile();
-    });
+  const saveCurrentProfile = () => session.flush();
 
   // 删除配置
   const handleDelete = async () => {
@@ -262,11 +248,10 @@ export function useProfileEditor() {
           lockScroll: false,
         }
       );
-      if (saveTimer) {
-        clearTimeout(saveTimer);
-        saveTimer = null;
-      }
-      await deleteProfile(selectedProfile.value.id);
+      const id = selectedProfile.value.id;
+      session.cancelPending();
+      await deleteProfile(id);
+      session.discard();
       selectedProfileId.value = profiles.value[0]?.id || null;
       if (selectedProfileId.value) {
         selectProfile(selectedProfileId.value);
@@ -279,7 +264,10 @@ export function useProfileEditor() {
 
   // 切换启用状态
   const handleToggle = (profile: LlmProfile) => {
-    void toggleProfileEnabled(profile.id).catch(() => {});
+    if (editForm.value.id === profile.id) {
+      editForm.value.enabled = !editForm.value.enabled;
+      void session.flush();
+    } else void toggleProfileEnabled(profile.id).catch(() => {});
   };
 
   // 重置 API 地址到默认值
@@ -307,6 +295,11 @@ export function useProfileEditor() {
     createFromPresetTemplate,
     generateId,
     saveCurrentProfile,
+    refreshCurrentProfile,
+    saveError: session.lastError,
+    saveConflict: session.hasConflict,
+    isSaving: session.isSaving,
+    isDirty: session.isDirty,
     handleDelete,
     handleToggle,
     resetBaseUrl,

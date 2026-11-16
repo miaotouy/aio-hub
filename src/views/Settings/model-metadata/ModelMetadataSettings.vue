@@ -20,7 +20,9 @@
       <div class="settings-stats">
         <span>总配置: {{ configs.length }}</span>
         <span>已启用: {{ enabledCount }}</span>
-        <span v-if="searchText || filterEnabled !== 'all' || filterSource !== 'all'">
+        <span
+          v-if="searchText || filterEnabled !== 'all' || filterSource !== 'all'"
+        >
           当前显示: {{ filteredConfigs.length }}
         </span>
       </div>
@@ -811,10 +813,6 @@ async function handleApplyModelRefresh(keys: string[]) {
       savedProfileNames.push(profile.name);
       savedModelCount += items.length;
     } catch {
-      const profileIndex = profiles.value.findIndex(
-        (item) => item.id === profile.id
-      );
-      if (profileIndex !== -1) profiles.value[profileIndex] = profile;
       failedProfileNames.push(profile.name);
     }
   }

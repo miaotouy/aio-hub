@@ -34,7 +34,10 @@ function legacyProfile(): LlmProfile {
  * 每个用例都重置模块注册表，确保 useLlmProfiles 的模块级单例（configManager
  * 内存存储、secretVault、isLoaded）回到干净的初始状态。
  */
-async function bootstrapWithLegacyProfiles(profiles: LlmProfile[]) {
+async function bootstrapWithLegacyProfiles(
+  profiles: LlmProfile[],
+  failInitialLoad = false
+) {
   vi.resetModules();
 
   // useLlmProfiles 依赖 useModelMetadata 的 Pinia Store
@@ -59,8 +62,26 @@ async function bootstrapWithLegacyProfiles(profiles: LlmProfile[]) {
   await profilesManager.save({ profiles });
 
   const { useLlmProfiles } = await import("@/composables/useLlmProfiles");
+  const { ConfigManager } = await import("@/utils/configManager");
+  const originalLoad = ConfigManager.prototype.load;
+  let failNextRead = failInitialLoad;
+  const load = failInitialLoad
+    ? vi.spyOn(ConfigManager.prototype, "load").mockImplementation(function (
+        this: any
+      ) {
+        if (this.moduleName === "llm-service" && failNextRead) {
+          failNextRead = false;
+          return Promise.reject(new Error("initial load unavailable"));
+        }
+        return originalLoad.call(this);
+      })
+    : null;
   const store = useLlmProfiles();
-  await store.loadProfiles();
+  try {
+    await store.loadProfiles();
+  } finally {
+    load?.mockRestore();
+  }
 
   const { createLlmSecretVault } = await import("@/utils/llm-secret");
   const vault = createLlmSecretVault({
@@ -238,5 +259,83 @@ describe("useLlmProfiles provider selection", () => {
     expect(
       store.getEnabledProfileByType("deepseek", PROFILE_ID)
     ).toBeUndefined();
+  });
+});
+
+describe("confirmed configuration writes", () => {
+  it("keeps failed edits private and retries against the same confirmed revision", async () => {
+    const { store } = await bootstrapWithLegacyProfiles([legacyProfile()]);
+    const { ConfigManager } = await import("@/utils/configManager");
+    const revision = store.revision.value;
+    const draft = { ...store.profiles.value[0], name: "Retried draft" };
+    const save = vi
+      .spyOn(ConfigManager.prototype, "save")
+      .mockRejectedValueOnce(new Error("disk full"));
+    try {
+      await expect(
+        store.saveProfile(draft, { expectedRevision: revision })
+      ).rejects.toThrow("disk full");
+      expect(store.profiles.value[0].name).toBe("Legacy Channel");
+      expect(store.revision.value).toBe(revision);
+      expect(draft.name).toBe("Retried draft");
+      await store.saveProfile(draft, { expectedRevision: revision });
+      expect(store.profiles.value[0].name).toBe("Retried draft");
+      expect(store.revision.value).not.toBe(revision);
+    } finally {
+      save.mockRestore();
+    }
+  });
+  it("serializes independent creations without dropping either channel", async () => {
+    const { store } = await bootstrapWithLegacyProfiles([]);
+    const a = { ...legacyProfile(), id: "queued-a" };
+    const b = { ...legacyProfile(), id: "queued-b" };
+    const first = store.saveProfile(a);
+    const second = store.saveProfile(b);
+    a.name = "later mutation";
+    await Promise.all([first, second]);
+    expect(store.profiles.value.map((item) => item.id)).toEqual([
+      "queued-a",
+      "queued-b",
+    ]);
+    expect(store.profiles.value[0].name).toBe("Legacy Channel");
+  });
+  it("merges local model updates and refuses an older full draft", async () => {
+    const profile = {
+      ...legacyProfile(),
+      models: [{ id: "model", name: "Model", capabilities: { vision: true } }],
+    };
+    const { store } = await bootstrapWithLegacyProfiles([profile]);
+    const staleRevision = store.revision.value;
+    const oldDraft = JSON.parse(JSON.stringify(store.profiles.value[0]));
+    await store.patchProfileModel(PROFILE_ID, "model", {
+      capabilities: { iterativeRefinement: true },
+    });
+    expect(store.profiles.value[0].models[0].capabilities).toMatchObject({
+      vision: true,
+      iterativeRefinement: true,
+    });
+    await expect(
+      store.saveProfile(oldDraft, { expectedRevision: staleRevision })
+    ).rejects.toMatchObject({ code: "LLM_CONFIG_CONFLICT" });
+    expect(
+      store.profiles.value[0].models[0].capabilities?.iterativeRefinement
+    ).toBe(true);
+  });
+  it("recovers an initial storage load failure before creating a channel and retains saved channels", async () => {
+    const { store } = await bootstrapWithLegacyProfiles(
+      [legacyProfile()],
+      true
+    );
+    expect(store.isLoaded.value).toBe(false);
+    await store.saveProfile(
+      { ...legacyProfile(), id: "recovered-new" },
+      { expectedRevision: null }
+    );
+    expect(store.isLoaded.value).toBe(true);
+    expect(store.profiles.value.map((item) => item.id)).toEqual([
+      PROFILE_ID,
+      "recovered-new",
+    ]);
+    expect(store.profiles.value[0].apiKeys).toEqual([LEGACY_SECRET]);
   });
 });

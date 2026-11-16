@@ -23,7 +23,7 @@ import type { MediaTaskType } from "../types";
 
 export function useMediaGenParameterState() {
   const store = useMediaGenStore();
-  const { getProfileById, saveProfile } = useLlmProfiles();
+  const { getProfileById, patchProfileModel } = useLlmProfiles();
   const { getModelParamRules, usesAspectRatioMode, sanitizeParams } =
     useMediaGenParamRules();
 
@@ -145,9 +145,9 @@ export function useMediaGenParameterState() {
       if (selectedModelInfo.value) {
         const { profile, model } = selectedModelInfo.value;
         if (profile && model) {
-          if (!model.capabilities) model.capabilities = {};
-          model.capabilities.iterativeRefinement = val;
-          await saveProfile(JSON.parse(JSON.stringify(profile)));
+          await patchProfileModel(profile.id, model.id, {
+            capabilities: { iterativeRefinement: val },
+          });
         }
       }
     },

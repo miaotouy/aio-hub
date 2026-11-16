@@ -40,6 +40,8 @@ const configManager = createConfigManager<{ profiles: OcrProfile[] }>({
 const profiles = ref<OcrProfile[]>([]);
 const isLoaded = ref(false);
 let loadPromise: Promise<void> | null = null;
+const revision = ref(0);
+let writeQueue: Promise<unknown> = Promise.resolve();
 
 export function useOcrProfiles() {
   /**
@@ -99,80 +101,61 @@ export function useOcrProfiles() {
     return loadPromise;
   };
 
-  /**
-   * 保存配置到文件系统
-   */
-  const saveToStorage = async () => {
-    try {
-      logger.debug("保存 OCR 配置到文件系统", {
-        profileCount: profiles.value.length,
+  const writeProfiles = (
+    update: (latest: OcrProfile[]) => OcrProfile[],
+    expectedRevision?: number
+  ) => {
+    const task = writeQueue
+      .catch(() => {})
+      .then(async () => {
+        try {
+          if (
+            expectedRevision !== undefined &&
+            expectedRevision !== revision.value
+          )
+            throw Object.assign(
+              new Error("OCR 服务配置已更新，请刷新后重新保存"),
+              { code: "OCR_CONFIG_CONFLICT" }
+            );
+          const next = update(JSON.parse(JSON.stringify(profiles.value)));
+          await configManager.save({ profiles: next });
+          profiles.value = JSON.parse(JSON.stringify(next));
+          revision.value++;
+          return { profiles: next, revision: revision.value };
+        } catch (error) {
+          errorHandler.error(error, "保存 OCR 配置失败");
+          throw error;
+        }
       });
-      await configManager.save({ profiles: profiles.value });
-      logger.info("OCR 配置保存成功");
-    } catch (error) {
-      errorHandler.error(error, "保存 OCR 配置失败", {
-        context: { profileCount: profiles.value.length },
-      });
-      throw error;
-    }
+    writeQueue = task;
+    return task;
   };
 
-  /**
-   * 添加或更新配置
-   */
-  const saveProfile = async (profile: OcrProfile) => {
-    try {
-      const index = profiles.value.findIndex(
-        (p: OcrProfile) => p.id === profile.id
-      );
-      if (index !== -1) {
-        // 更新现有配置
-        logger.info("更新 OCR 配置", {
-          profileId: profile.id,
-          profileName: profile.name,
-        });
-        profiles.value[index] = profile;
-      } else {
-        // 添加新配置
-        logger.info("添加新 OCR 配置", {
-          profileId: profile.id,
-          profileName: profile.name,
-        });
-        profiles.value.push(profile);
-      }
-      await saveToStorage();
-    } catch (error) {
-      errorHandler.error(error, "保存 OCR 配置失败", {
-        context: {
-          profileId: profile.id,
-          profileName: profile.name,
-        },
-      });
-      throw error;
-    }
+  const saveProfile = (
+    value: OcrProfile,
+    options: { expectedRevision?: number } = {}
+  ) => {
+    const profile: OcrProfile = JSON.parse(JSON.stringify(value));
+    const creating =
+      !profiles.value.some((item) => item.id === profile.id) &&
+      (options.expectedRevision === undefined ||
+        options.expectedRevision === revision.value);
+    const expectedRevision = creating
+      ? undefined
+      : (options.expectedRevision ?? revision.value);
+    return writeProfiles((latest) => {
+      const index = latest.findIndex((item) => item.id === profile.id);
+      if (index < 0) latest.push(profile);
+      else latest[index] = profile;
+      return latest;
+    }, expectedRevision).then((saved) => ({
+      value: JSON.parse(JSON.stringify(profile)) as OcrProfile,
+      revision: saved.revision,
+    }));
   };
 
-  /**
-   * 删除配置
-   */
-  const deleteProfile = async (id: string) => {
-    try {
-      const index = profiles.value.findIndex((p: OcrProfile) => p.id === id);
-      if (index !== -1) {
-        const profileName = profiles.value[index].name;
-        logger.info("删除 OCR 配置", { profileId: id, profileName });
-        profiles.value.splice(index, 1);
-        await saveToStorage();
-      } else {
-        logger.warn("尝试删除不存在的配置", { profileId: id });
-      }
-    } catch (error) {
-      errorHandler.error(error, "删除 OCR 配置失败", {
-        context: { profileId: id },
-      });
-      throw error;
-    }
-  };
+  const deleteProfile = (id: string) =>
+    writeProfiles((latest) => latest.filter((item) => item.id !== id));
 
   /**
    * 根据 ID 获取配置
@@ -188,43 +171,19 @@ export function useOcrProfiles() {
     return profiles.value.filter((p: OcrProfile) => p.enabled);
   });
 
-  /**
-   * 切换配置的启用状态
-   */
-  const toggleProfileEnabled = async (id: string) => {
-    try {
-      const profile = profiles.value.find((p: OcrProfile) => p.id === id);
-      if (profile) {
-        profile.enabled = !profile.enabled;
-        logger.info("切换 OCR 配置状态", {
-          profileId: id,
-          profileName: profile.name,
-          enabled: profile.enabled,
-        });
-        await saveToStorage();
-      } else {
-        logger.warn("尝试切换不存在的配置", { profileId: id });
-      }
-    } catch (error) {
-      errorHandler.error(error, "切换配置状态失败", {
-        context: { profileId: id },
-      });
-      throw error;
-    }
-  };
+  const toggleProfileEnabled = (id: string) =>
+    writeProfiles((latest) => {
+      const profile = latest.find((item) => item.id === id);
+      if (profile) profile.enabled = !profile.enabled;
+      return latest;
+    });
 
-  /**
-   * 更新配置顺序
-   */
-  const updateProfilesOrder = async (newProfiles: OcrProfile[]) => {
-    try {
-      logger.info("更新 OCR 配置顺序", { count: newProfiles.length });
-      profiles.value = newProfiles;
-      await saveToStorage();
-    } catch (error) {
-      errorHandler.error(error, "更新 OCR 配置顺序失败");
-      throw error;
-    }
+  const updateProfilesOrder = (ordered: OcrProfile[]) => {
+    const ids = ordered.map((item) => item.id);
+    return writeProfiles((latest) => [
+      ...ids.flatMap((id) => latest.filter((item) => item.id === id)),
+      ...latest.filter((item) => !ids.includes(item.id)),
+    ]);
   };
 
   /**
@@ -261,6 +220,7 @@ export function useOcrProfiles() {
   return {
     profiles,
     isLoaded,
+    revision,
     loadProfiles,
     saveProfile,
     deleteProfile,

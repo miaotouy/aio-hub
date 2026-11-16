@@ -21,6 +21,7 @@ import { customMessage } from "@/utils/customMessage";
 import ProfileSidebar from "../shared/ProfileSidebar.vue";
 import ProfileEditor from "../shared/ProfileEditor.vue";
 import CustomOcrRequestEditor from "./components/CustomOcrRequestEditor.vue";
+import { useDraftAutoSave } from "@/composables/useDraftAutoSave";
 import { useOcrProfiles } from "@composables/useOcrProfiles";
 import {
   ocrProviderTypes,
@@ -35,6 +36,7 @@ import type { OcrPreset } from "@/tools/smart-ocr/platform/cloud/providers";
 
 const {
   profiles,
+  revision,
   saveProfile,
   deleteProfile,
   toggleProfileEnabled,
@@ -43,9 +45,6 @@ const {
   updateProfilesOrder,
 } = useOcrProfiles();
 
-// 防抖保存的计时器
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
-
 // 当前选中的配置
 const selectedProfileId = ref<string | null>(null);
 
@@ -53,46 +52,14 @@ const selectedProfileId = ref<string | null>(null);
 const showPresetDialog = ref(false);
 
 // 编辑表单
-const editForm = ref<OcrProfile>({
-  id: "",
-  name: "",
-  provider: "baidu",
-  endpoint: "",
-  credentials: {
-    apiKey: "",
-    apiSecret: "",
-  },
-  enabled: true,
-  concurrency: 3,
-  delay: 0,
-});
-
-// 计算当前选中的配置
-const selectedProfile = computed(() => {
-  if (!selectedProfileId.value) return null;
-  return (
-    profiles.value.find((p: OcrProfile) => p.id === selectedProfileId.value) ||
-    null
-  );
-});
-
-// 选择配置
-const selectProfile = (profileId: string) => {
-  selectedProfileId.value = profileId;
-  const profile = profiles.value.find((p: OcrProfile) => p.id === profileId);
-  if (profile) {
-    editForm.value = JSON.parse(JSON.stringify(profile));
-  }
-};
-
-// 创建新配置 - 从空白开始
-const createNewProfile = () => {
-  const defaultProvider = ocrProviderTypes[0];
-  editForm.value = {
-    id: generateId(),
-    name: "新建 OCR 服务",
-    provider: defaultProvider.type,
-    endpoint: defaultProvider.defaultEndpoint,
+const session = useDraftAutoSave<OcrProfile, number>({
+  save: saveProfile,
+  validate: (value) => validateProfile(value),
+  initial: {
+    id: "",
+    name: "",
+    provider: "baidu",
+    endpoint: "",
     credentials: {
       apiKey: "",
       apiSecret: "",
@@ -100,13 +67,73 @@ const createNewProfile = () => {
     enabled: true,
     concurrency: 3,
     delay: 0,
-  };
+  },
+});
+const editForm = session.draft;
+const saveError = session.lastError;
+const saveConflict = session.hasConflict;
+const isSaving = session.isSaving;
+const isDirty = session.isDirty;
+
+// 计算当前选中的配置
+const selectedProfile = computed(() => {
+  if (!selectedProfileId.value) return null;
+  return (
+    profiles.value.find((p: OcrProfile) => p.id === selectedProfileId.value) ||
+    (editForm.value.id === selectedProfileId.value ? editForm.value : null)
+  );
+});
+
+const flushPendingSave = () => {
+  void session.flush();
+};
+const selectProfile = (profileId: string) => {
+  flushPendingSave();
+  selectedProfileId.value = profileId;
+  const profile = profiles.value.find((item) => item.id === profileId);
+  if (profile) session.open(profile, revision.value);
+};
+watch(revision, () => {
+  const profile = profiles.value.find(
+    (item) => item.id === selectedProfileId.value
+  );
+  if (profile) session.sync(profile, revision.value);
+});
+const refreshCurrentProfile = () => {
+  const profile = profiles.value.find(
+    (item) => item.id === selectedProfileId.value
+  );
+  if (profile) session.open(profile, revision.value, false, true);
+};
+
+// 创建新配置 - 从空白开始
+const createNewProfile = () => {
+  flushPendingSave();
+  const defaultProvider = ocrProviderTypes[0];
+  session.open(
+    {
+      id: generateId(),
+      name: "新建 OCR 服务",
+      provider: defaultProvider.type,
+      endpoint: defaultProvider.defaultEndpoint,
+      credentials: {
+        apiKey: "",
+        apiSecret: "",
+      },
+      enabled: true,
+      concurrency: 3,
+      delay: 0,
+    },
+    revision.value,
+    true
+  );
   selectedProfileId.value = editForm.value.id;
 };
 
 // 从预设创建配置
 const createFromPresetTemplate = (preset: OcrPreset) => {
-  editForm.value = createFromPreset(preset);
+  flushPendingSave();
+  session.open(createFromPreset(preset), revision.value, true);
   selectedProfileId.value = editForm.value.id;
   showPresetDialog.value = false;
 };
@@ -117,62 +144,38 @@ const handleAddClick = () => {
 };
 
 // 保存配置（验证并保存）
-const saveCurrentProfile = () => {
+function validateProfile(value: OcrProfile) {
   // 基础验证：名称必填
-  if (!editForm.value.name.trim()) {
+  if (!value.name.trim()) {
     customMessage.error("请输入服务名称");
     return false;
   }
 
   // 对于非自定义类型，端点必填
-  if (editForm.value.provider !== "custom" && !editForm.value.endpoint.trim()) {
+  if (value.provider !== "custom" && !value.endpoint.trim()) {
     customMessage.error("请输入 API 端点地址");
     return false;
   }
 
   // 对于自定义类型，验证 apiRequest
-  if (editForm.value.provider === "custom") {
-    if (!editForm.value.apiRequest) {
+  if (value.provider === "custom") {
+    if (!value.apiRequest) {
       customMessage.error("请配置自定义 API 请求");
       return false;
     }
-    if (!editForm.value.apiRequest.urlTemplate.trim()) {
+    if (!value.apiRequest.urlTemplate.trim()) {
       customMessage.error("请输入 API URL 地址");
       return false;
     }
-    if (!editForm.value.apiRequest.resultPath.trim()) {
+    if (!value.apiRequest.resultPath.trim()) {
       customMessage.error("请输入结果提取路径");
       return false;
     }
   }
 
-  saveProfile(editForm.value);
   return true;
-};
-
-// 防抖自动保存
-const autoSave = () => {
-  if (saveTimer) {
-    clearTimeout(saveTimer);
-  }
-  saveTimer = setTimeout(() => {
-    if (saveCurrentProfile()) {
-      // 静默保存，不显示成功提示
-    }
-  }, 1000); // 1秒防抖
-};
-
-// 监听表单变化，自动保存
-watch(
-  () => editForm.value,
-  () => {
-    // 只有在选中了配置时才自动保存
-    if (selectedProfileId.value) {
-      autoSave();
-    }
-  },
-  { deep: true }
-);
+}
+const saveCurrentProfile = () => session.flush();
 
 // 删除配置
 const handleDelete = async () => {
@@ -189,7 +192,10 @@ const handleDelete = async () => {
         lockScroll: false,
       }
     );
-    deleteProfile(selectedProfile.value.id);
+    const id = selectedProfile.value.id;
+    session.cancelPending();
+    await deleteProfile(id);
+    session.discard();
     selectedProfileId.value = profiles.value[0]?.id || null;
     if (selectedProfileId.value) {
       selectProfile(selectedProfileId.value);
@@ -206,7 +212,10 @@ const handleToggle = (profile: {
   name: string;
   enabled: boolean;
 }) => {
-  toggleProfileEnabled(profile.id);
+  if (editForm.value.id === profile.id) {
+    editForm.value.enabled = !editForm.value.enabled;
+    void session.flush();
+  } else void toggleProfileEnabled(profile.id).catch(() => {});
 };
 
 // 获取提供商类型信息
@@ -286,6 +295,31 @@ const createDefaultApiRequest = (): OcrApiRequest => {
         :show-save="false"
         @delete="handleDelete"
       >
+        <template #extra-actions>
+          <span role="status">{{
+            isSaving
+              ? "保存中…"
+              : saveConflict
+                ? "配置已更新，草稿已保留"
+                : saveError
+                  ? "保存失败，草稿已保留"
+                  : isDirty
+                    ? "待保存"
+                    : "已保存"
+          }}</span>
+          <el-button
+            v-if="saveError && !saveConflict"
+            size="small"
+            @click="saveCurrentProfile"
+            >重试保存</el-button
+          >
+          <el-button
+            v-if="saveError"
+            size="small"
+            @click="refreshCurrentProfile"
+            >放弃草稿并刷新</el-button
+          >
+        </template>
         <el-form :model="editForm" label-width="100px" label-position="left">
           <el-form-item label="服务名称">
             <el-input

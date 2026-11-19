@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   parseToolRequests: vi.fn(),
   processCycle: vi.fn(),
   calculateTokens: vi.fn(),
+  logger: { info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
   settings: {
     value: {
       uiPreferences: { isStreaming: true, splitVcpResponses: false },
@@ -84,7 +85,7 @@ vi.mock("@/composables/useWindowSyncBus", () => ({
   useWindowSyncBus: () => ({ syncState: mocks.syncState }),
 }));
 vi.mock("@/utils/logger", () => ({
-  createModuleLogger: () => ({ info: vi.fn(), warn: vi.fn(), debug: vi.fn() }),
+  createModuleLogger: () => mocks.logger,
 }));
 vi.mock("@/utils/errorHandler", () => ({
   ErrorLevel: { ERROR: "error" },
@@ -419,6 +420,73 @@ describe("live reasoning activity", () => {
     mocks.settings.value.uiPreferences.splitVcpResponses = false;
     vi.clearAllTimers();
     vi.useRealTimers();
+  });
+
+  it("records reasoning transitions once and freezes timing across body chunks", () => {
+    const node = useNodeManager().createNode({
+      role: "assistant",
+      content: "",
+      parentId: null,
+      status: "waiting",
+    });
+    const session: ChatSessionDetail = {
+      id: "session",
+      nodes: { [node.id]: node },
+      rootNodeId: node.id,
+      activeLeafId: node.id,
+      updatedAt: new Date().toISOString(),
+      history: [],
+      historyIndex: -1,
+    };
+    const handler = useChatResponseHandler();
+    const start = Date.now();
+    const timingLogs = () =>
+      mocks.logger.debug.mock.calls
+        .map(([, data]) => data)
+        .filter((data) => data?.nodeId === node.id && data.startTime);
+    const send = (elapsed: number, chunk: string, isReasoning = false) => {
+      vi.setSystemTime(start + elapsed);
+      handler.handleStreamUpdate(session, node.id, chunk, isReasoning);
+    };
+
+    try {
+      // Several reasoning chunks arrive before the first animation frame.
+      send(0, "think", true);
+      send(100, " more", true);
+      expect(timingLogs()).toHaveLength(1);
+      send(1000, "answer");
+      const ended = { ...node.metadata };
+      send(2000, " part two");
+      send(3000, " part three");
+      expect(timingLogs()).toHaveLength(2);
+      expect(node.metadata).toMatchObject({
+        reasoningActive: false,
+        reasoningEndTime: start + 1000,
+        reasoningDurationMs: 1000,
+        reasoningContent: "think more",
+      });
+      expect(node.metadata?.reasoningEndTime).toBe(ended.reasoningEndTime);
+
+      // A later reasoning phase in the same reply still accumulates its duration.
+      send(4000, "resume", true);
+      send(4100, " thinking", true);
+      send(4500, "continued answer");
+      send(5000, " final part");
+      handler.completeStreamSegment(session, node.id);
+      expect(timingLogs()).toHaveLength(4);
+      expect(node.metadata).toMatchObject({
+        reasoningActive: false,
+        reasoningEndTime: start + 4500,
+        reasoningDurationMs: 1500,
+        reasoningContent: "think moreresume thinking",
+      });
+      expect(timingLogs().filter((data) => data.endTime)).toEqual([
+        expect.objectContaining({ endTime: start + 1000, duration: 1000 }),
+        expect.objectContaining({ endTime: start + 4500, duration: 1500 }),
+      ]);
+    } finally {
+      disposeStreamingMessageSource(node.id);
+    }
   });
 
   // Tool cards read node.content directly, so received results must be visible

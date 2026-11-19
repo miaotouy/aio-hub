@@ -93,7 +93,7 @@ export function useChatResponseHandler() {
 
     metadata.reasoningActive = false;
     metadata.reasoningActiveSince = undefined;
-    if (metadata.reasoningStartTime) {
+    if (wasActive && metadata.reasoningStartTime) {
       metadata.reasoningEndTime = timestamp;
     }
   };
@@ -259,6 +259,7 @@ export function useChatResponseHandler() {
     const node = session.nodes[nodeId];
     if (!node) return;
 
+    const wasReasoningActive = node.metadata?.reasoningActive === true;
     updateReasoningActivity(node, isReasoning);
 
     // 记录首字时间：reasoning/thinking 是用户可见输出，也应参与 TTFT 与速度统计。
@@ -277,10 +278,9 @@ export function useChatResponseHandler() {
     if (isReasoning) {
       // 推理内容流式更新（节流）
       if (!node.metadata) node.metadata = {};
-      if (!node.metadata.reasoningContent) {
-        node.metadata.reasoningContent = "";
-        node.metadata.reasoningStartTime ??= Date.now();
-        logger.info("🕐 推理开始时间已记录", {
+      node.metadata.reasoningContent ??= "";
+      if (!wasReasoningActive) {
+        logger.debug("🕐 推理开始时间已记录", {
           nodeId,
           startTime: node.metadata.reasoningStartTime,
         });
@@ -303,16 +303,14 @@ export function useChatResponseHandler() {
         });
       }
     } else {
-      if (node.metadata?.reasoningStartTime) {
+      if (wasReasoningActive) {
         // 强制刷新一次 reasoning 缓冲区
         flushReasoningToNode(session, nodeId);
-        node.metadata.reasoningEndTime ??= Date.now();
-        logger.info("🕐 推理结束时间已记录（正文开始）", {
+        logger.debug("🕐 推理结束时间已记录（正文开始）", {
           nodeId,
           startTime: node.metadata.reasoningStartTime,
           endTime: node.metadata.reasoningEndTime,
-          duration:
-            node.metadata.reasoningEndTime - node.metadata.reasoningStartTime,
+          duration: node.metadata.reasoningDurationMs,
         });
       }
 

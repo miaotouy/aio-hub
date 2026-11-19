@@ -112,15 +112,15 @@ function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
       reject(createAbortError());
       return;
     }
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer);
-        reject(createAbortError());
-      },
-      { once: true }
-    );
+    const aborted = () => {
+      clearTimeout(timer);
+      reject(createAbortError());
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", aborted);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", aborted, { once: true });
   });
 }
 

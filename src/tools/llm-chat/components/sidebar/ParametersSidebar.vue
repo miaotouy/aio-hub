@@ -324,6 +324,9 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
           :supported-features="currentModel?.supportedFeatures"
           :context-length-limit="contextLengthLimit"
           :external-stats="chatStore.contextStats"
+          :external-stats-error="chatStore.contextStatsError"
+          :external-stats-loading="chatStore.isLoadingContextStats"
+          @retry-context-stats="chatStore.refreshContextStats('retry')"
         />
       </div>
     </div>

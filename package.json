@@ -129,6 +129,8 @@
     "check:security": "bun run security:dependencies",
     "check:dev-ui": "tsc --noEmit --strict --module esnext --moduleResolution bundler --target es2022 --types node,bun --skipLibCheck scripts/dev-control/cli.ts scripts/dev-control/launch.ts scripts/dev-control/runtime.ts scripts/ubuntu-vm.ts",
     "test:dev-ui": "vitest --run --config scripts/dev-control/vitest.config.ts",
+    "control": "bun scripts/agent-control/cli.ts",
+    "control:build": "bun build scripts/agent-control/cli.ts --target=node --outfile .tmp/agent-control/aiohubctl.mjs",
     "dev:control": "bun scripts/dev-control/runtime.ts",
     "dev:vm": "bun scripts/ubuntu-vm.ts",
     "monaco:nls": "bun scripts/sync-monaco-nls.ts",

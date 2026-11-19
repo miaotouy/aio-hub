@@ -14,7 +14,7 @@
 
 import { ElectronChannel } from "../electron/channel";
 import * as tauri from "@tauri-apps/api/core";
-import { request, getElectronBridge, unsupported } from "../electron/client";
+import { request, getElectronBridge } from "../electron/client";
 export * from "@tauri-apps/api/core";
 export const invoke: typeof tauri.invoke = getElectronBridge()
   ? (((command: string, args?: unknown, options?: unknown) =>
@@ -30,7 +30,11 @@ export const invoke: typeof tauri.invoke = getElectronBridge()
   : tauri.invoke;
 export const convertFileSrc: typeof tauri.convertFileSrc = getElectronBridge()
   ? (path, protocol = "asset") => {
-      if (protocol !== "asset") return unsupported("资源协议 " + protocol);
+      if (protocol !== "asset")
+        throw Object.assign(new Error("文件资源协议未注册：" + protocol), {
+          code: "RESOURCE_PROTOCOL_NOT_REGISTERED",
+          protocol,
+        });
       return getElectronBridge()!.assetUrl(path);
     }
   : tauri.convertFileSrc;

@@ -16,9 +16,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h, KeepAlive, ref, type Component } from "vue";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { invoke } from "@/platform/native/core";
+import { isElectronRuntime } from "@/platform/core/env";
 import { listen } from "@/platform/native/events";
 import { useSystemPulse } from "./useSystemPulse";
 vi.mock("@/platform/native/events", () => ({ listen: vi.fn() }));
+vi.mock("@/platform/core/env", () => ({
+  isElectronRuntime: vi.fn(() => true),
+}));
 vi.mock("@/utils/logger", () => ({
   createModuleLogger: () => ({ error: vi.fn() }),
 }));
@@ -177,4 +181,14 @@ describe("system pulse cached-page lifecycle", () => {
     expect(starts()).toHaveLength(2);
     expect(logic.isActive.value).toBe(true);
   });
+});
+
+// Start/stop ownership stays the same when the native host owns subscription identity.
+it("starts and stops monitoring with the Tauri command signature", async () => {
+  vi.mocked(isElectronRuntime).mockReturnValue(false);
+  open();
+  await flushPromises();
+  expect(invoke).toHaveBeenCalledWith("start_pulse", {});
+  await logic.stop();
+  expect(invoke).toHaveBeenCalledWith("stop_pulse", {});
 });

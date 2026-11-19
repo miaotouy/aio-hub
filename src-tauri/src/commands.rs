@@ -15,7 +15,6 @@
 // 命令模块汇总
 pub mod agent_asset_manager;
 pub mod asset_manager;
-pub mod background_runtime;
 pub mod canvas_window;
 pub mod clipboard;
 pub mod color_picker_batch;
@@ -23,6 +22,7 @@ pub mod code_formatter;
 pub mod config_manager;
 pub mod content_deduplicator;
 pub mod dev_control;
+pub mod agent_control;
 pub mod dir_search;
 pub mod directory_janitor;
 pub mod directory_tree;
@@ -58,7 +58,6 @@ pub mod window_manager;
 // 重新导出所有命令
 pub use agent_asset_manager::*;
 pub use asset_manager::*;
-pub use background_runtime::*;
 pub use canvas_window::*;
 pub use clipboard::*;
 pub use color_picker_batch::*;
@@ -106,9 +105,10 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         #[cfg(target_os = "linux")]
         crate::commands::media_stream::release_media_stream,
         crate::commands::dev_control::dev_control_identity,
-        background_runtime_ready,
-        background_runtime_heartbeat,
-        background_runtime_get_status,
+        crate::commands::agent_control::agent_control_status,
+        crate::commands::agent_control::agent_control_configure,
+        crate::commands::agent_control::agent_control_ready,
+        crate::commands::agent_control::agent_control_reply,
         crate::frontend_monitor::frontend_probe_ready,
         crate::frontend_monitor::frontend_probe_heartbeat,
         crate::frontend_monitor::frontend_probe_error,

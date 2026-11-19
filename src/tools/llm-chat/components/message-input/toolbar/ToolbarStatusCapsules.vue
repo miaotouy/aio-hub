@@ -33,10 +33,13 @@ const props = defineProps<{
   canvasBindingInfo: { id: string; name: string } | null;
   hasCanvasPendingChanges: boolean;
   contextStats: ContextPreviewData["statistics"] | null;
+  contextStatsError?: string | null;
+  contextStatsLoading?: boolean;
 }>();
 
 const emit = defineEmits<{
   "open-canvas": [anchor: HTMLElement];
+  "retry-context-stats": [];
 }>();
 
 const { currentAgentId } = useLlmChatUiState();
@@ -160,6 +163,27 @@ const unbindCanvas = () => {
       </div>
     </el-tooltip>
 
+    <button
+      v-if="statusId === 'context-tokens' && props.contextStatsError"
+      type="button"
+      class="context-stats-error"
+      :title="props.contextStatsError + '；点击重新统计'"
+      :disabled="props.contextStatsLoading"
+      @click="emit('retry-context-stats')"
+    >
+      上下文统计失败 · 重试
+    </button>
+    <span
+      v-else-if="
+        statusId === 'context-tokens' &&
+        props.contextStatsLoading &&
+        !props.contextStats
+      "
+      role="status"
+      class="context-stats-loading"
+      >统计中…</span
+    >
+
     <!-- 历史上下文统计 -->
     <el-tooltip
       v-if="
@@ -186,9 +210,7 @@ const unbindCanvas = () => {
             </div>
             <div v-if="props.contextStats.worldbookTokenCount">
               世界书:
-              {{
-                props.contextStats.worldbookTokenCount.toLocaleString()
-              }}
+              {{ props.contextStats.worldbookTokenCount.toLocaleString() }}
               tokens
             </div>
             <div v-if="props.contextStats.chatHistoryTokenCount">
@@ -208,9 +230,7 @@ const unbindCanvas = () => {
               已截断: {{ props.contextStats.truncatedMessageCount }} 条消息
               <span v-if="props.contextStats.savedTokenCount">
                 (省
-                {{
-                  props.contextStats.savedTokenCount.toLocaleString()
-                }}
+                {{ props.contextStats.savedTokenCount.toLocaleString() }}
                 tokens)
               </span>
             </div>
@@ -291,6 +311,23 @@ const unbindCanvas = () => {
 </template>
 
 <style scoped>
+.context-stats-error {
+  border: 0;
+  padding: 2px 4px;
+  background: transparent;
+  color: var(--warning-color);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.context-stats-error:focus-visible {
+  outline: 2px solid var(--primary-color);
+}
+.context-stats-loading {
+  color: var(--text-color-secondary);
+  font-size: 11px;
+}
+
 .token-count {
   font-size: 12px;
   color: var(--text-color-secondary);

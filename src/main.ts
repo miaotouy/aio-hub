@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { hasNativeRuntimeMarker } from "@/platform/core/env";
 import * as Vue from "vue";
 import { createApp } from "vue";
 import * as ElementPlus from "element-plus";
@@ -30,7 +31,6 @@ import { ElNotification } from "element-plus";
 import { extname } from "@/platform/native/path"; // 导入 path 模块用于获取文件扩展名
 import { createPinia } from "pinia";
 import { isElectronRuntime } from "@/platform/core/env";
-import { getHostCapability } from "@/platform/core/capabilities";
 import { getElectronBridge } from "@/platform/electron/client";
 if (isElectronRuntime())
   document.documentElement.classList.add("electron-host"); // 导入 Pinia
@@ -45,7 +45,6 @@ import "@/utils/monaco-i18n/nls";
 // 详见 src/tools/llm-inspector/ARCHITECTURE.md §1.1.3
 import { inspectorHookRegistry } from "@/tools/llm-inspector/core/hookRegistry";
 import { Buffer } from "buffer";
-import { backgroundJsRuntimeBridge } from "./services/background-js-runtime-bridge";
 
 // 解决 music-metadata-browser 在浏览器环境下缺少 Buffer 的问题
 if (typeof (window as any).Buffer === "undefined") {
@@ -61,22 +60,6 @@ if (typeof (window as any).Buffer === "undefined") {
 (window as any).TauriAppsApiCore = TauriAppsApiCore;
 
 const logger = createModuleLogger("Main");
-// 按宿主能力启动独立后台运行时，主窗口订阅其状态和响应。
-if (getHostCapability("backgroundJsRuntime").available)
-  void backgroundJsRuntimeBridge
-    .start()
-    .then(async () => {
-      if (import.meta.env.DEV) {
-        const result = await backgroundJsRuntimeBridge.call<{ pong: boolean }>(
-          "runtime.ping",
-          null
-        );
-        logger.info("Background JS Runtime 已连接", result);
-      }
-    })
-    .catch((error) => {
-      logger.warn("Background JS Runtime 未就绪", error);
-    });
 
 const FRONTEND_PROBE_HEARTBEAT_MS = 5000;
 const FRONTEND_PROBE_TEXT_LIMIT = 4000;
@@ -374,6 +357,11 @@ const mountApp = async () => {
       void import("./dev/control/bridge")
         .then(({ startDevControlBridge }) => startDevControlBridge())
         .catch((error: unknown) => logger.warn("开发控制桥启动失败", error));
+    }
+    if (hasNativeRuntimeMarker()) {
+      void import("./services/agent-control/bridge")
+        .then(({ startAgentControlBridge }) => startAgentControlBridge())
+        .catch((error: unknown) => logger.warn("本机调试接管初始化失败", error));
     }
     reportFrontendReady("vue-mounted");
     startFrontendHeartbeat();

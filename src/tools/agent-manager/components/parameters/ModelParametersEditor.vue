@@ -80,6 +80,8 @@ interface Props {
   contextLengthLimit?: number;
   /** 由聊天入口传入的上下文统计数据 */
   externalStats?: ContextPreviewData["statistics"] | null;
+  externalStatsError?: string | null;
+  externalStatsLoading?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -90,6 +92,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: LlmParameters): void;
+  (e: "retry-context-stats"): void;
 }>();
 
 const { getSupportedParameters } = useLlmProfiles();
@@ -510,6 +513,9 @@ const hasActivePostProcessingRules = computed(() => {
       <!-- 当前上下文统计 -->
       <ContextStatsCard
         :stats="contextStats"
+        :error="props.externalStatsError"
+        :loading="props.externalStatsLoading"
+        @retry="emit('retry-context-stats')"
         :max-context-tokens="
           localParams.contextManagement?.maxContextTokens ?? 0
         "

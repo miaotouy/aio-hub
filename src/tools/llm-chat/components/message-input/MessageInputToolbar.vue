@@ -79,6 +79,8 @@ interface Props {
   isExpanded: boolean;
   isStreamingEnabled: boolean;
   contextStats: ContextPreviewData["statistics"] | null;
+  contextStatsError?: string | null;
+  contextStatsLoading?: boolean;
   inputText: string;
   isProcessingAttachments: boolean;
   hasAttachments: boolean;
@@ -99,6 +101,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: "new-text-attachment"): void;
+  (e: "retry-context-stats"): void;
   (e: "toggle-streaming"): void;
   (e: "toggle-expand"): void;
   (e: "unlock-input-height"): void;
@@ -528,6 +531,9 @@ onBeforeUnmount(closePanels);
             :canvas-binding-info="canvasBindingInfo"
             :has-canvas-pending-changes="hasCanvasPendingChanges"
             :context-stats="props.contextStats"
+            :context-stats-error="props.contextStatsError"
+            :context-stats-loading="props.contextStatsLoading"
+            @retry-context-stats="emit('retry-context-stats')"
             @open-canvas="openCanvasPanel"
           />
         </div>

@@ -552,6 +552,7 @@ const maskKey = (key: string) => {
 
       <!-- 表格 -->
       <el-table
+        data-sensitive
         :data="filteredTableData"
         height="450px"
         style="width: 100%"
@@ -702,6 +703,7 @@ const maskKey = (key: string) => {
         <el-input
           v-model="importText"
           type="textarea"
+          data-sensitive
           :rows="10"
           placeholder="sk-..., sk-..."
         />

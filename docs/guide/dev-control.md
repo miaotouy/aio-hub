@@ -2,6 +2,8 @@
 
 AIO Hub 提供本机开发控制 CLI，用于操作真实桌面窗口、读取界面结构与保存 PNG。入口位于项目中，各类 agent 和开发者终端都可以调用。Tauri 支持 Windows / WebView2 和 Linux / WebKitGTK，Electron 通过 CDP 复用同一套命令协议。Electron 已在 Windows 验证，macOS/Linux 的监听检查与传输适配待对应系统验收。
 
+正式版日常使用的现场接管见[正式版 CLI 接管与现场记录](production-control.md)。
+
 ## 启动
 
 ```powershell
@@ -17,6 +19,8 @@ bun run dev:static -- --agent --agent-instance agent-demo
 省略 `--agent-instance` 时，沿用 `AIO_ID_SUFFIX`；后缀为空时使用 `agent`。多个实例使用不同名称，前端和代理端口沿用项目现有的后缀分配规则。端口冲突时调整 `AIO_PORT` 或选择其他实例名称。
 
 控制模式每次启动创建独立应用数据目录，Windows 同时隔离 WebView2 profile，位置为 `.dev-data/dev-control/data/<实例>/<启动身份>/`。此模式下 `AIO_DATA_DIR` 的既有配置由本次隔离目录替换。需要复现已有数据时，在确认来源后将需要的开发样例放入隔离实例；日常实例保持原有目录。
+
+Windows 普通开发启动（包括 `dev:static`）同样使用 `<应用数据目录>/webview2-profile`，主窗口、分离窗口、画布与弹幕覆盖窗口共享该开发 profile。开发实例与安装版可并行运行；首次切换目录时浏览器缓存和本地 Web 存储会重新建立，模型和会话等应用持久化数据沿用原目录。
 
 启动终端提示控制就绪后，即可调用 CLI。结束开发时在启动终端按 Ctrl+C。截图和隔离数据保留供检查。
 

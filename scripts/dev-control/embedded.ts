@@ -164,7 +164,7 @@ export class EmbeddedConnection {
       timeout
     );
     const windows: DevControlDescription[] = [];
-    for (const label of labels.filter((label) => label !== "background-js")) {
+    for (const label of labels) {
       try {
         const description = await this.describeLabel(
           label,

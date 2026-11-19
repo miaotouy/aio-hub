@@ -908,8 +908,16 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   }
 
   // 上下文统计管理 (委托给 Composable)
-  const { contextStats, isLoadingContextStats, refreshContextStats } =
-    useChatContextStats(currentSession, currentSessionDetail, currentSessionId);
+  const {
+    contextStats,
+    contextStatsError,
+    isLoadingContextStats,
+    refreshContextStats,
+  } = useChatContextStats(
+    currentSession,
+    currentSessionDetail,
+    currentSessionId
+  );
 
   // ==================== 返回 ====================
   return {
@@ -1060,6 +1068,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
     // 上下文统计
     contextStats,
+    contextStatsError,
     isLoadingContextStats,
     refreshContextStats,
 

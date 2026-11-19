@@ -175,10 +175,10 @@ preload 使用 `contextIsolation: true`、`sandbox: true`、`nodeIntegration: fa
 
 ## 后台 JavaScript 运行时
 
-`electron/background-runtime.ts` 由应用主进程持有，通过 `background-runtime-worker.cjs` 启动独立 Node utility process。前端桥经平台门面的 `background.start` / `background.call` 接入；Tauri 继续沿用现有事件桥与隐藏 WebView。
+`electron/background-runtime.ts` 由应用主进程持有，通过 `background-runtime-worker.cjs` 启动独立 Node utility process。主进程保留显式的 `background.start` / `background.call` 诊断接口。2026-11-19 维护版移除前端自动启动自检及 Tauri 隐藏 WebView PoC，Electron Worker 由显式诊断请求按需启动。
 
 - Worker 启动后报告版本和就绪状态，每 5 秒发送心跳。启动等待上限 15 秒，心跳失联阈值 20 秒；watchdog 回收失联进程，下次连接启动新代次。连接时也检查心跳，避免在两个检查 tick 之间复用失联进程。
-- `background_runtime_get_status` 提供可用、就绪、代次、版本与最近心跳。就绪和心跳由主进程接收 Worker 消息更新，Renderer 无对应写入口。
+- 显式启动后返回可用、就绪、代次、版本与最近心跳。就绪和心跳由主进程接收 Worker 消息更新。
 - 同时在途 RPC 上限 64，默认 30 秒，调用方可设置至 120 秒。错误保留结构化 code。请求归属页面，刷新、渲染进程退出及窗口销毁释放其等待；Worker 生命周期持续到应用退出。
 - 应用退出先回收 Worker，超时升级到进程树清理；清理结束前阻止创建替代进程。关闭到托盘沿用桌面工作区策略。
 

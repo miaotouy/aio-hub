@@ -89,6 +89,43 @@ afterEach(() => {
 });
 
 describe("context statistics scheduling", () => {
+  it("刷新失败清除旧统计并暴露原因，重试成功恢复计数", async () => {
+    const stats = fixture();
+    const first = stats.refreshContextStats();
+    await vi.advanceTimersByTimeAsync(1);
+    finish(0, 42);
+    await first;
+    const failed = stats.refreshContextStats();
+    await vi.advanceTimersByTimeAsync(1);
+    probe.calls[1].reject(new Error("附件读取失败"));
+    await failed;
+    expect(stats.contextStats.value).toBeNull();
+    expect(stats.contextStatsError.value).toBe("附件读取失败");
+    expect(stats.isLoadingContextStats.value).toBe(false);
+    const retry = stats.refreshContextStats("retry");
+    await vi.advanceTimersByTimeAsync(1);
+    expect(stats.contextStatsError.value).toBeNull();
+    finish(2, 84);
+    await retry;
+    expect(stats.contextStats.value?.totalTokenCount).toBe(84);
+    expect(stats.contextStatsError.value).toBeNull();
+  });
+
+  it("切换会话后忽略旧请求的迟到失败", async () => {
+    const stats = fixture();
+    const first = stats.refreshContextStats();
+    await vi.advanceTimersByTimeAsync(1);
+    stats.select("B");
+    probe.calls[0].reject(new Error("旧会话失败"));
+    await first;
+    expect(stats.contextStatsError.value).toBeNull();
+    await vi.advanceTimersByTimeAsync(501);
+    finish(1, 84);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(stats.contextStats.value?.totalTokenCount).toBe(84);
+    expect(stats.contextStatsError.value).toBeNull();
+  });
+
   it("会话切换立即拒绝旧结果，等待防抖后刷新当前会话", async () => {
     const stats = fixture();
     const first = stats.refreshContextStats();

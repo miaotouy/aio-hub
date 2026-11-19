@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { getElectronBridge, request } from "../electron/client";
-import type { BackgroundJsRuntimeStatus } from "@/background-runtime/protocol";
-
-/** Direct host RPC; Electron's worker never subscribes to renderer-authored events. */
-export function getBackgroundRuntimeHost() {
-  if (!getElectronBridge()) return null;
-  return {
-    start: () => request<BackgroundJsRuntimeStatus>("background.start"),
-    call: <T>(method: string, payload: unknown, timeoutMs: number) =>
-      request<T>("background.call", { method, payload, timeoutMs }),
-  };
+/** Validate the exit status after a child process has finished. */
+export function assertProcessSucceeded(
+  child: { exitCode: number | null; signalCode: string | null },
+  label: string
+): void {
+  if (child.signalCode)
+    throw new Error(label + " 因信号 " + child.signalCode + " 中止");
+  if (child.exitCode === null) throw new Error(label + " 退出状态不可用");
+  if (child.exitCode !== 0)
+    throw new Error(label + " 退出码 " + child.exitCode);
 }

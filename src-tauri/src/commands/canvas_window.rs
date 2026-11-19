@@ -81,7 +81,7 @@ pub async fn create_canvas_window(
         builder = builder.transparent(true);
     }
 
-    let window = crate::commands::dev_control::configure_webview(builder)
+    let window = crate::commands::dev_control::configure_webview(builder, app.config())
         .build()
         .map_err(|e| e.to_string())?;
 

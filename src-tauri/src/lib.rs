@@ -198,6 +198,7 @@ pub fn run_with_context(context: tauri::Context<tauri::Wry>) {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_os::init())
+        .plugin(commands::agent_control::plugin())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build());
 
@@ -236,7 +237,6 @@ pub fn run_with_context(context: tauri::Context<tauri::Wry>) {
     let builder = builder
         // 管理状态
         .manage(ClipboardMonitorState::new())
-        .manage(commands::background_runtime::BackgroundJsRuntimeState::default())
         .manage(commands::native_plugin::NativePluginState::default())
         .manage(commands::directory_janitor::ScanCancellation::new())
         .manage(commands::directory_janitor::CleanupCancellation::new())
@@ -287,6 +287,7 @@ pub fn run_with_context(context: tauri::Context<tauri::Wry>) {
 
             // 动态扩展文件系统权限 (Scope)，确保便携模式下前端插件也能访问数据目录
             let app_data_dir = get_app_data_dir(app.config());
+            commands::agent_control::setup(app);
             #[cfg(desktop)]
             {
                 use tauri_plugin_fs::FsExt;
@@ -404,12 +405,7 @@ pub fn run_with_context(context: tauri::Context<tauri::Wry>) {
                 win_builder = win_builder.decorations(false).transparent(true);
             }
 
-            let main_window = commands::dev_control::configure_webview(win_builder).build()?;
-
-            #[cfg(desktop)]
-            if let Err(error) = commands::background_runtime::create_background_runtime_window(app.app_handle()) {
-                log::error!("[BACKGROUND_JS_RUNTIME] 创建隐藏运行时窗口失败: {}", error);
-            }
+            let main_window = commands::dev_control::configure_webview(win_builder, app.config()).build()?;
 
             frontend_monitor::start_frontend_monitor(app.app_handle().clone());
 

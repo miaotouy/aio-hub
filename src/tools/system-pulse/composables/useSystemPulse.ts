@@ -17,6 +17,7 @@ import { onUnmounted, ref, watch } from "vue";
 import { usePageActivity } from "@/composables/usePageActivity";
 import { createModuleLogger } from "@/utils/logger";
 import { invoke } from "@/platform/native/core";
+import { isElectronRuntime } from "@/platform/core/env";
 import { listen, type UnlistenFn } from "@/platform/native/events";
 import { writeText } from "@/platform/native/clipboard";
 import { save } from "@/platform/native/dialog";
@@ -57,7 +58,10 @@ export function useSystemPulse() {
     isActive.value = false;
     if (session.started) {
       try {
-        await invoke("stop_pulse", { subscriptionId: session.id });
+        await invoke(
+          "stop_pulse",
+          isElectronRuntime() ? { subscriptionId: session.id } : {}
+        );
       } catch (error) {
         fail(error, "停止系统监控失败");
       }
@@ -99,7 +103,10 @@ export function useSystemPulse() {
       );
       if (!shouldRun()) return;
       session.started = true;
-      await invoke("start_pulse", { subscriptionId: session.id });
+      await invoke(
+        "start_pulse",
+        isElectronRuntime() ? { subscriptionId: session.id } : {}
+      );
       if (shouldRun()) isActive.value = true;
     } catch (error) {
       if (shouldRun()) fail(error, "启动系统监控失败");

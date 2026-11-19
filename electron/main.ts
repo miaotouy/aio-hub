@@ -57,6 +57,7 @@ import { HttpRequests } from "./http";
 import { chromiumFetch } from "./chromium-fetch";
 import { llmHttpFetch } from "./llm-http";
 import { readDevControl, devControlIdentity } from "./dev-control";
+import { AgentControl } from "./agent-control";
 import type { HttpRequestOptions } from "./shared";
 import type { HostReply, HostMetadata, EventTarget } from "./shared";
 import {
@@ -167,6 +168,14 @@ const hostRoot = app.getAppPath();
 const rendererRoot = path.join(hostRoot, "renderer");
 const windows = new Map<string, BrowserWindow>();
 const transparentWindows = new WeakSet<BrowserWindow>();
+const agentControl = new AgentControl(app.getPath("userData"), {
+  windows: () => [...windows].filter(([, win]) => !win.isDestroyed()).map(([label]) => label),
+  deliver: (label, event, payload) => {
+    const win = windows.get(label);
+    return Boolean(win && !win.isDestroyed() && publishOwned(win.webContents.id, event, payload));
+  },
+  status: status => publish("agent-control:status", status),
+});
 const httpRequests = new HttpRequests((url, init, options) =>
   options.llm
     ? llmHttpFetch(url, init, options.llm, (value) =>
@@ -1042,7 +1051,7 @@ const hostShutdown = new HostShutdown({
     return [
       () => llmSearch.disposeAll(), () => fileWatches.disposeAll(),
       () => clipboardMonitor.disposeAll(), () => directoryTrees.disposeAll(),
-      () => desktopControls.destroy(),
+      () => desktopControls.destroy(), () => agentControl.stop(),
       () => ffmpeg.shutdown(), () => gitCommands.shutdown(),
       () => directoryJanitor.shutdown(), () => contentDeduplicator.shutdown(),
       () => directorySearch.shutdown(), () => symlinkMover.shutdown(),
@@ -1151,8 +1160,6 @@ async function command(
   win: BrowserWindow
 ): Promise<unknown> {
   switch (name) {
-    case "background_runtime_get_status":
-      return backgroundRuntime.getStatus();
     case "git_scan_repositories":
     case "git_get_repo_status":
     case "git_get_file_diff":
@@ -1586,6 +1593,15 @@ async function command(
       return;
     case "apply_window_effect":
       return applyWindowEffect(win, str(args.effect), transparentWindows.has(win), process.platform);
+    case "agent_control_status":
+      return agentControl.status();
+    case "agent_control_configure":
+      if (typeof args.enabled !== "boolean") throw new Error("enabled 需要布尔值");
+      return agentControl.configure(args.enabled);
+    case "agent_control_ready":
+      return agentControl.ready([...windows].find(([, candidate]) => candidate === win)![0]);
+    case "agent_control_reply":
+      return agentControl.reply([...windows].find(([, candidate]) => candidate === win)![0], str(args.id), args.reply as import("../src/services/agent-control/protocol").ControlReply);
     case "dev_control_identity":
       return devControlIdentity(
         devControl,
@@ -1923,7 +1939,6 @@ void app
     if (!devOrigin) {
       for (const name of [
         "index.html",
-        "background-js.html",
         "danmaku-overlay.html",
       ]) {
         const html = await fs.readFile(path.join(rendererRoot, name), "utf8");
@@ -2019,6 +2034,7 @@ void app
     });
     const desktopSettings = await readDesktopSettings(app.getPath("userData"));
     desktopControls.minimizeToTray = desktopSettings.minimizeToTray;
+    try { await agentControl.initialize(); } catch { console.warn("本机调试接管启动失败，可在日志设置中重新开启。"); }
     await createWindow("main");
     await desktopControls.setShowTrayIcon(desktopSettings.showTrayIcon);
   })

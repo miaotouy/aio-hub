@@ -27,6 +27,7 @@
 - 前端改动确认前除类型检查外同步运行 Vite 构建，以覆盖打包期导入、插件和 CSS 检查。
 - 普通浏览器用于验证明确具有 mock 或 browser fallback 的纯前端场景；涉及 Tauri WebView、IPC、插件或真实窗口运行态的功能，在真实环境中进行验证。
 - Agent 日常开发的页面操作与截图优先使用项目自带 Dev Control CLI，启动、窗口选择、批量指令和权限边界见[开发界面控制指南](docs/guide/dev-control.md)。
+- 排查日用安装版时，优先使用独立的正式版控制入口 `bun run control -- ...`；在“设置 → 高级与维护 → 日志与诊断”开启“本机调试接管”，连接、操作和现场导出见[正式版 CLI 接管指南](docs/guide/production-control.md)。
 - Tauri 单测、真实窗口 E2E、原生文件对话框和 Windows UI Automation 的边界与运行方式见[工具测试指南](docs/guide/tool-testing-guide.md)、[Tauri E2E 说明](tests/tauri-e2e/README.md)和[Windows UI Automation 说明](tests/windows-ui-automation/README.md)。
 - 默认仅运行与当前改动相关的测试用例，保持执行高效。
 - 测试由回归风险和可稳定验证的行为驱动。新增测试需明确其防护的具体回归点；断言应面向目标行为契约，避免机械镜像实现细节。迁移旧测试时以当前目标契约为验证依据。

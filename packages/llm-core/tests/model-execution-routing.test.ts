@@ -29,6 +29,20 @@ function model(routing?: LlmExecutionModel["routing"]): LlmExecutionModel {
 }
 
 describe("resolveModelExecution", () => {
+  it.each(["openai", "cohere"])(
+    "routes %s rerank requests through the rerank adapter",
+    (type) => {
+      const source = profile(type);
+      const execution = resolveModelExecution({
+        profile: source,
+        model: model(),
+        operation: "rerank",
+      });
+      expect(execution.adapterId).toBe("jina-rerank");
+      expect(execution.effectiveProfile).toBe(source);
+    }
+  );
+
   it("preserves the complete legacy profile on provider-default resolution", () => {
     const source = profile("deepseek");
 

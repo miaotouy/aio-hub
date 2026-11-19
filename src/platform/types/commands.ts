@@ -104,13 +104,7 @@ export interface CommandMap {
   >;
   end_drag_session: CommandDefinition<void, boolean>;
 
-  // === 探针与后台运行时 ===
-  background_runtime_ready: CommandDefinition<void, unknown>;
-  background_runtime_heartbeat: CommandDefinition<void, unknown>;
-  background_runtime_get_status: CommandDefinition<
-    void,
-    { generation: number; alive: boolean }
-  >;
+  // === 前端运行探针 ===
   frontend_probe_ready: CommandDefinition<void, unknown>;
   frontend_probe_heartbeat: CommandDefinition<void, unknown>;
 }

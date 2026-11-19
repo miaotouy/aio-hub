@@ -977,6 +977,7 @@ const networkSettingSummary = computed(() => {
                 <div style="display: flex; gap: 8px; width: 100%">
                   <el-input
                     v-model="apiKeyInput"
+                    data-sensitive
                     type="password"
                     placeholder="可选,某些服务可能不需要。多个密钥用逗号分隔"
                     show-password

@@ -16,7 +16,6 @@ import { currentPlatformRuntime } from "./env";
 import { platform } from "../native/os";
 
 const definitions = {
-  backgroundJsRuntime: { label: "后台 JavaScript 运行时", windowsOnly: false },
   systemCodeFormatting: { label: "系统代码格式化", windowsOnly: false },
   windowAutomation: { label: "窗口绑定和方案执行", windowsOnly: true },
   screenCapture: { label: "屏幕监控", windowsOnly: true },
@@ -66,8 +65,7 @@ export function getHostCapability(
     currentPlatformRuntime === "electron" &&
     capability !== "screenCapture" &&
     capability !== "windowAutomation" &&
-    capability !== "systemCodeFormatting" &&
-    capability !== "backgroundJsRuntime"
+    capability !== "systemCodeFormatting"
   ) {
     return {
       available: false,

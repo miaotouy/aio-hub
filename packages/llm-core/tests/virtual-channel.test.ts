@@ -3,6 +3,7 @@ import {
   ChannelConfigurationError,
   ChannelExecutionError,
   executeChannelRequest,
+  isChannelRetryableError,
   resolveChannelCandidates,
   type ChannelProfile,
 } from "../src/virtual-channel";
@@ -201,3 +202,15 @@ describe("virtual channel request contract", () => {
     ).toThrow();
   });
 });
+
+it.each([
+  [{ code: "ECONNRESET" }, true],
+  [{ code: "ECONNREFUSED", retryable: false }, false],
+  [{ code: "ECONNRESET", name: "AbortError" }, false],
+  [{ code: "DEPTH_ZERO_SELF_SIGNED_CERT" }, false],
+] as const)(
+  "classifies native connection failures without overriding stop decisions (%j)",
+  (error, expected) => {
+    expect(isChannelRetryableError(error)).toBe(expected);
+  }
+);

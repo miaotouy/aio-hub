@@ -37,10 +37,7 @@ const windowsFeatures: HostCapability[] = [
   "screenCapture",
   "externalPlayerOverlay",
 ];
-const sharedFeatures: HostCapability[] = [
-  "backgroundJsRuntime",
-  "systemCodeFormatting",
-];
+const sharedFeatures: HostCapability[] = ["systemCodeFormatting"];
 
 beforeEach(() => {
   host.runtime = "tauri";
@@ -82,13 +79,11 @@ describe("宿主业务能力契约", () => {
     expect(getHostCapability("screenCapture").available).toBe(true);
     expect(getHostCapability("windowAutomation").available).toBe(true);
     expect(getHostCapability("systemCodeFormatting").available).toBe(true);
-    expect(getHostCapability("backgroundJsRuntime").available).toBe(true);
     for (const capability of [...windowsFeatures, ...sharedFeatures].filter(
       (item) =>
         item !== "screenCapture" &&
         item !== "windowAutomation" &&
-        item !== "systemCodeFormatting" &&
-        item !== "backgroundJsRuntime"
+        item !== "systemCodeFormatting"
     )) {
       expect(getHostCapability(capability)).toMatchObject({
         available: false,

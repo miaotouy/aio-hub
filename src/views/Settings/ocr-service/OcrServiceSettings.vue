@@ -373,6 +373,7 @@ const createDefaultApiRequest = (): OcrApiRequest => {
             <el-form-item label="API Key">
               <el-input
                 v-model="editForm.credentials.apiKey"
+                data-sensitive
                 type="password"
                 placeholder="可选，某些服务可能不需要"
                 show-password
@@ -385,6 +386,7 @@ const createDefaultApiRequest = (): OcrApiRequest => {
             >
               <el-input
                 v-model="editForm.credentials.apiSecret"
+                data-sensitive
                 type="password"
                 placeholder="请输入 API Secret"
                 show-password

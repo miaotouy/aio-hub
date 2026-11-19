@@ -910,7 +910,11 @@ watch(
         <!-- 设置按钮（仅主窗口显示） -->
         <template v-if="isMainWindow">
           <el-tooltip content="设置" placement="bottom">
-            <button class="control-btn settings-btn" @click="goToSettings">
+            <button
+              class="control-btn settings-btn"
+              aria-label="设置"
+              @click="goToSettings"
+            >
               <el-icon><Setting /></el-icon>
             </button>
           </el-tooltip>
@@ -919,7 +923,11 @@ watch(
         <!-- 窗口控制按钮（macOS 上隐藏，因为系统提供原生控件） -->
         <template v-if="!isMacOS">
           <el-tooltip content="最小化" placement="bottom">
-            <button class="control-btn minimize-btn" @click="minimizeWindow">
+            <button
+              class="control-btn minimize-btn"
+              aria-label="最小化"
+              @click="minimizeWindow"
+            >
               <el-icon><Minus /></el-icon>
             </button>
           </el-tooltip>
@@ -928,7 +936,11 @@ watch(
             :content="isMaximized ? '还原' : '最大化'"
             placement="bottom"
           >
-            <button class="control-btn maximize-btn" @click="toggleMaximize">
+            <button
+              class="control-btn maximize-btn"
+              :aria-label="isMaximized ? '还原' : '最大化'"
+              @click="toggleMaximize"
+            >
               <el-icon>
                 <CopyDocument
                   :style="{
@@ -945,7 +957,13 @@ watch(
             "
             placement="bottom"
           >
-            <button class="control-btn close-btn" @click="closeWindow">
+            <button
+              class="control-btn close-btn"
+              :aria-label="
+                isMainWindow && settings?.minimizeToTray ? '隐藏到托盘' : '关闭'
+              "
+              @click="closeWindow"
+            >
               <el-icon><Close /></el-icon>
             </button>
           </el-tooltip>

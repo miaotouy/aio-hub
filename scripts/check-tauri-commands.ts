@@ -14,6 +14,7 @@
 
 import fs from "fs";
 import path from "path";
+import ts from "typescript";
 
 /**
  * 检查前端代码中调用的所有 Tauri invoke 命令：
@@ -269,9 +270,51 @@ function collectInvokeCalls(files: string[]): InvokeCall[] {
 
   for (const file of files) {
     const content = fs.readFileSync(file, "utf-8");
+    // Local helpers named invoke (including backend regression fixtures) are not host RPCs.
+    const scripts = file.endsWith(".vue")
+      ? [...content.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)]
+          .map((m) => m[1])
+          .join("\n")
+      : content;
+    const source = ts.createSourceFile(
+      file + ".ts",
+      scripts,
+      ts.ScriptTarget.Latest,
+      true
+    );
+    const imported = new Set<string>();
+    for (const statement of source.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier)
+      )
+        continue;
+      const module = statement.moduleSpecifier.text;
+      const resolved = module.startsWith("@/")
+        ? path.resolve("src", module.slice(2))
+        : path.resolve(path.dirname(file), module);
+      if (
+        !module.startsWith("@tauri-apps/") &&
+        resolved !== path.resolve("src/platform") &&
+        !resolved.startsWith(path.resolve("src/platform") + path.sep)
+      )
+        continue;
+      const bindings = statement.importClause?.namedBindings;
+      if (!bindings || !ts.isNamedImports(bindings)) continue;
+      for (const binding of bindings.elements)
+        if (
+          !binding.isTypeOnly &&
+          ["invoke", "callBackend"].includes(
+            (binding.propertyName ?? binding.name).text
+          )
+        )
+          imported.add(binding.name.text);
+    }
     let m: RegExpExecArray | null;
     invokeRegex.lastIndex = 0;
     while ((m = invokeRegex.exec(content))) {
+      const name = m[0].match(/^(invoke|callBackend)\b/)?.[1];
+      if (!name || !imported.has(name)) continue;
       const cmd = m[2];
       const afterCmd = m.index + m[0].length;
       let keys: string[] | null = null;

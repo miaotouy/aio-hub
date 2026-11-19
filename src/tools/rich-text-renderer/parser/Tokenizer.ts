@@ -231,6 +231,7 @@ export class Tokenizer {
     let i = 0;
     let atLineStart = true;
     let rawTagStack: string[] = [];
+    let htmlCodeDepth = 0;
 
     while (i < len) {
       const char = text.charCodeAt(i);
@@ -474,6 +475,12 @@ export class Tokenizer {
           const attributes = this.parseAttributes(htmlMatch[3]);
           const isSelfClosing =
             !!htmlMatch[4] || Tokenizer.voidElements.has(tagName);
+
+          // Code examples keep request delimiters literal, including while streaming.
+          if (tagName === "code") {
+            if (isClosing) htmlCodeDepth = Math.max(0, htmlCodeDepth - 1);
+            else if (!isSelfClosing) htmlCodeDepth++;
+          }
 
           if (isClosing) {
             tokens.push({ type: "html_close", tagName, raw: rawTag });
@@ -742,7 +749,10 @@ export class Tokenizer {
           }
 
           // TOOL_REQUEST_ESCAPE 是字面量；仅标准请求创建工具节点。
-          if (text.startsWith("<<<[TOOL_REQUEST]>>>", posAfterIndent)) {
+          if (
+            htmlCodeDepth === 0 &&
+            text.startsWith("<<<[TOOL_REQUEST]>>>", posAfterIndent)
+          ) {
             const startMarker = "<<<[TOOL_REQUEST]>>>";
             const endMarker = "<<<[END_TOOL_REQUEST]>>>";
             let currentPos = posAfterIndent + startMarker.length;

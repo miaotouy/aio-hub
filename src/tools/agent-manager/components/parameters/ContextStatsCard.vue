@@ -27,15 +27,33 @@ import type { ContextPreviewData } from "@/tools/llm-chat/types/context";
 
 interface Props {
   stats: ContextPreviewData["statistics"] | null;
+  error?: string | null;
+  loading?: boolean;
   maxContextTokens: number;
   enabled: boolean;
   hasActivePostProcessingRules: boolean;
 }
 
 defineProps<Props>();
+defineEmits<{ retry: [] }>();
 </script>
 
 <template>
+  <div
+    v-if="error || loading"
+    class="stats-feedback"
+    :class="{ failed: error }"
+    role="status"
+  >
+    <template v-if="error">
+      <strong>上下文统计失败</strong>
+      <span>{{ error }}</span>
+      <el-button size="small" :disabled="loading" @click="$emit('retry')"
+        >重新统计</el-button
+      >
+    </template>
+    <span v-else>正在统计上下文…</span>
+  </div>
   <div v-if="stats" class="context-stats-card">
     <!-- 核心指标卡片 -->
     <div class="summary-card">
@@ -288,6 +306,23 @@ defineProps<Props>();
 </template>
 
 <style scoped>
+.stats-feedback {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-color-secondary);
+  overflow-wrap: anywhere;
+}
+.stats-feedback.failed {
+  color: var(--warning-color);
+}
+
 /* 上下文统计卡片 */
 .context-stats-card {
   margin-bottom: 20px;

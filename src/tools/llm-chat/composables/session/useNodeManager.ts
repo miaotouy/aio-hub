@@ -70,6 +70,7 @@ export function useNodeManager() {
     // Queue markers are runtime scheduling state and must not leak into a clone.
     // Otherwise a queued continuation creates another queued sibling forever.
     delete clean.isQueued;
+    delete clean.waitingPhase;
 
     return clean;
   };

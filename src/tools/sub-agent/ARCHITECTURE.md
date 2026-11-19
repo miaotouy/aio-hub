@@ -1,7 +1,7 @@
 # Sub-Agent 与后台任务系统：架构与设计规范
 
-> 状态：Active | 最后更新：2026-10-19
-> 关联模块：`src/tools/sub-agent`、`src/background-runtime`、`src/services/background-tasks`、`src/tools/llm-chat`、`src/tools/agent-manager`
+> 状态：Active | 最后更新：2026-11-19
+> 关联模块：`src/tools/sub-agent`、`src/services/background-tasks`、`src/tools/llm-chat`、`src/tools/agent-manager`
 > 参考方案：[`chat-companion-dock-slot.md`](./docs/Plan/chat-companion-dock-slot.md)、[`background-agent-observability-and-intervention.md`](./docs/Plan/background-agent-observability-and-intervention.md)、[`builtin-baseline-subagent.md`](./docs/Plan/builtin-baseline-subagent.md)（已实施）
 > 相关架构：[工具自动审批仲裁](../../../docs/architecture/tool-approval-arbitration.md)
 
@@ -11,12 +11,12 @@
 
 `sub-agent` 工具模块是 AIO Hub 面向多智能体协同、异步长时间任务与后台长效自治运行的专项基础设施。
 
-传统 LLM 对话以单会话为主，前台生成具有强阻断性，无法满足耗时长、步骤复杂、跨智能体协作以及在用户切换页面或关闭主窗口时持续运行的需求。`sub-agent` 与 `background-runtime` 组合解决了以下核心问题：
+当前维护版由 `sub-agent.registry` 调用 `llmChatService` 执行子会话，任务状态由共享注册表与队列管理，支持以下行为：
 
 1. **会话与编排双轨解耦**：子会话聊天数据保存在标准的 `ChatSessionDetail` 中，任务调度、状态机与进度指标由 `BackgroundTaskRegistry` 与 `sub-agent.registry` 独立维护。
 2. **全局可观测与实时透视**：支持在主界面任务中心（`BackgroundTaskCenter`）、标题栏胶囊以及 Chat 主工作区的伴生分栏（`chat-companion-dock-slot`）中实时透视子任务的完整消息流与活动时间轴。
 3. **安全人工干预与叫停**：提供追加指导叮嘱（在下一个安全执行点消费）与紧急中止叫停的能力。
-4. **后台长效运行时 Bridge**：通过 `src/background-runtime` 与 Tauri 后台无头 JS 运行时 Bridge，支持脱离前台 UI 视窗的后台独立生命周期执行。
+4. **执行生命周期**：子任务沿当前窗口的共享聊天编排运行；任务中心、伴生视图和聊天页面共享同一任务状态。
 5. **开箱即用与审批闭环**：内置基线子智能体按需释出（Materialization Pattern），模型晚绑定解析保证开箱可用；子任务工具调用统一经审批仲裁收口，后台任务承接人工审批与仲裁状态回放。
 
 ---
@@ -43,10 +43,10 @@
                │                               │
                ▼                               ▼
 ┌──────────────────────────────┐ ┌────────────────────────────┐
-│ 可观测性与交互层              │ │ Background JS Runtime (PoC)│
-│ - BackgroundTaskCenter 面板   │ │ - src/background-runtime   │
-│ - CompanionSessionSheet 分栏 │ │ - Tauri IPC Bridge 保活    │
-│ - DispatchLink 卡片与时间轴   │ │ - 脱离前台窗口生命周期     │
+│ 可观测性与交互层              │ │ 当前窗口的共享执行链         │
+│ - BackgroundTaskCenter 面板   │ │ - runChatOrchestration     │
+│ - CompanionSessionSheet 分栏 │ │ - 模型与工具请求             │
+│ - DispatchLink 卡片与时间轴   │ │ - 审批与会话保存             │
 │ - SubagentControlPanel 管理   │ └────────────────────────────┘
 │ - BackgroundTaskDetail 审批   │
 └──────────────────────────────┘
@@ -167,10 +167,8 @@ created ──► running ──► completed
 
 ---
 
-## 6. 后台 JS 运行时 (Background JS Runtime Bridge)
+## 6. 运行时边界
 
-位于 `src/background-runtime/`：
+维护版的真实子会话入口由当前窗口持有。任务状态持久化、页面切换和任务中心观察沿既有注册表实现。
 
-- **无头窗口生命周期**：由 Tauri 后台以 `background-js-runtime` 独立窗口启动，脱离前台主视窗的关闭与最小化影响。
-- **IPC 通信协议**：定义 `BACKGROUND_JS_RUNTIME_EVENTS`（`request`, `response`, `ready`），通过心跳机制（`background_runtime_heartbeat`）与健康探测（`runtime.ping`）确保后台服务高可用。
-- **演进目标**：逐步将重型长效任务、爬虫、定时工作流下沉至后台运行时独立执行。
+2026-11-19 核对 Tauri 隐藏 JS 窗口仅承载 ping、运行信息和心跳后，移除其窗口、页面、命令和前端自检桥。任务在全部窗口销毁后继续执行的能力随 dev 后台重构交付。

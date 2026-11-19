@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { ref } from "vue";
 
 interface Emits {
@@ -25,6 +26,7 @@ interface Emits {
 const emit = defineEmits<Emits>();
 
 const visible = defineModel<boolean>("visible", { required: true });
+const { visible: pageVisible, active: isPageActive } = usePageOverlay(visible);
 const presetName = ref("");
 
 function handleConfirm() {
@@ -45,10 +47,10 @@ function handleCancel() {
 
 <template>
   <el-dialog
-    v-model="visible"
+    v-model="pageVisible"
     title="添加 CSS 预设"
     width="400px"
-    @close="handleCancel"
+    @close="isPageActive && handleCancel()"
   >
     <el-form @submit.prevent="handleConfirm">
       <el-form-item label="预设名称">

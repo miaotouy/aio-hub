@@ -16,6 +16,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
+import AgentControlSettings from "./AgentControlSettings.vue";
 import { InfoFilled, FolderOpened, Delete } from "@element-plus/icons-vue";
 import { ElMessageBox, ElButton } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
@@ -285,6 +286,7 @@ watch(internalMaxFileSize, (newValue) => {
 
 <template>
   <div class="log-settings">
+    <AgentControlSettings />
     <!-- 日志级别设置 -->
     <div class="setting-item">
       <div class="setting-label">

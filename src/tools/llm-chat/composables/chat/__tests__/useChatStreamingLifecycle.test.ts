@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   syncState: vi.fn(),
   parseToolRequests: vi.fn(),
   processCycle: vi.fn(),
+  calculateTokens: vi.fn(),
+  logger: { info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
   settings: {
     value: {
       uiPreferences: { isStreaming: true, splitVcpResponses: false },
@@ -68,7 +70,7 @@ vi.mock("../../../config/parameter-config", () => ({
   buildEffectiveParameters: () => ({}),
 }));
 vi.mock("@/tools/token-calculator/token-calculator.registry", () => ({
-  tokenCalculatorService: {},
+  tokenCalculatorService: { calculateTokens: mocks.calculateTokens },
 }));
 vi.mock("@/composables/useAttachmentProcessor", () => ({
   processInlineData: async (text: string) => ({
@@ -83,7 +85,7 @@ vi.mock("@/composables/useWindowSyncBus", () => ({
   useWindowSyncBus: () => ({ syncState: mocks.syncState }),
 }));
 vi.mock("@/utils/logger", () => ({
-  createModuleLogger: () => ({ info: vi.fn(), warn: vi.fn(), debug: vi.fn() }),
+  createModuleLogger: () => mocks.logger,
 }));
 vi.mock("@/utils/errorHandler", () => ({
   ErrorLevel: { ERROR: "error" },
@@ -191,6 +193,219 @@ describe("interrupted streaming replies", () => {
     }
   );
 });
+// A completed model round must expose its own statistics while the VCP HTTP
+// request is still waiting for tools or producing another round.
+describe("completed VCP response segments", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    vi.clearAllMocks();
+    mocks.settings.value.uiPreferences.splitVcpResponses = true;
+    mocks.calculateTokens.mockImplementation(async (text: string) => ({
+      count: text.length,
+    }));
+  });
+
+  afterEach(() => {
+    mocks.settings.value.uiPreferences.splitVcpResponses = false;
+    mocks.calculateTokens.mockReset();
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
+  function createSession() {
+    const first = useNodeManager().createNode({
+      role: "assistant",
+      content: "",
+      parentId: null,
+      status: "waiting",
+      metadata: { requestStartTime: 1000 },
+    });
+    return reactive<ChatSessionDetail>({
+      id: "session",
+      nodes: { [first.id]: first },
+      rootNodeId: first.id,
+      activeLeafId: first.id,
+      updatedAt: new Date().toISOString(),
+      history: [],
+      historyIndex: -1,
+    });
+  }
+
+  async function execute(session: ChatSessionDetail) {
+    try {
+      await useSingleNodeExecutor().execute({
+        session,
+        assistantNode: session.nodes[session.rootNodeId!],
+        currentPathToUserNode: [],
+        splitVcpResponses: true,
+        agentConfig: { profileId: "profile", modelId: "model", parameters: {} },
+        executionAgent: { id: "agent" } as ChatAgent,
+        effectiveUserProfile: null,
+        abortController: new AbortController(),
+      });
+    } finally {
+      for (const id of Object.keys(session.nodes))
+        disposeStreamingMessageSource(id);
+    }
+  }
+
+  it.each([false, true])(
+    "closes each round and publishes throughput before HTTP completion (trailing usage=%s)",
+    async (trailingUsage) => {
+      const session = createSession();
+      const replies: string[] = [];
+      mocks.sendRequest.mockImplementation(
+        async (options: LlmRequestOptions) => {
+          for (let round = 0; round < 3; round++) {
+            const start = 1000 + round * 10000;
+            vi.setSystemTime(start + 100);
+            options.onResponseChunk?.({
+              responseId: "reused-model-id",
+              reasoningContent: "thinking",
+            });
+            const node = session.nodes[session.activeLeafId];
+            replies.push(node.id);
+            expect(node.status).toBe("generating");
+            vi.setSystemTime(start + 200);
+            options.onResponseChunk?.({
+              responseId: "reused-model-id",
+              content: "answer",
+            });
+            const usage = {
+              promptTokens: 10 + round,
+              completionTokens: 20 + round,
+              totalTokens: 30 + round * 2,
+            };
+            vi.setSystemTime(start + 1100);
+            options.onResponseChunk?.({
+              responseId: "reused-model-id",
+              finishReason: "stop",
+              ...(trailingUsage ? {} : { usage }),
+            });
+            expect(node.status).toBe("complete");
+            expect(node.content).toBe("answer");
+            expect(node.metadata).toMatchObject({
+              reasoningContent: "thinking",
+              reasoningActive: false,
+              requestStartTime: start,
+              firstTokenTime: start + 100,
+              requestEndTime: start + 1100,
+            });
+            if (trailingUsage) {
+              vi.setSystemTime(start + 1200);
+              options.onResponseChunk?.({
+                responseId: "chatcmpl-VCP-reasoning-close-1",
+                content: "</think>",
+              });
+              expect(node.status).toBe("complete");
+              expect(node.content).toBe("answer</think>");
+              options.onResponseChunk?.({ usage });
+            }
+            expect(node.metadata).toMatchObject({
+              usage,
+              contentTokens: 20 + round,
+              tokensPerSecond: 20 + round,
+              requestEndTime: start + 1100,
+            });
+            if (round < 2) {
+              vi.setSystemTime(start + 9000);
+              options.onResponseChunk?.({
+                responseId: `chatcmpl-vcp-${round + 1}`,
+                content: "tool result",
+              });
+              options.onResponseChunk?.({
+                responseId: `chatcmpl-VCP-separator-${round + 1}`,
+                content: "\n",
+              });
+              expect(node.metadata?.requestEndTime).toBe(start + 1100);
+              vi.setSystemTime(start + 10000);
+              options.onResponseChunk?.({
+                responseId: `chatcmpl-VCP-separator-next-${round + 1}`,
+                content: "\n",
+              });
+            }
+          }
+          return { content: "merged response" };
+        }
+      );
+      await execute(session);
+      expect(replies).toHaveLength(3);
+      expect(session.nodes[replies[1]].metadata).toMatchObject({
+        requestStartTime: 11000,
+        firstTokenTime: 11100,
+        requestEndTime: 12100,
+        contentTokens: 21,
+        tokensPerSecond: 21,
+      });
+    }
+  );
+
+  it("estimates missing usage per completed round and lets late provider usage win", async () => {
+    const session = createSession();
+    const first = session.nodes[session.activeLeafId];
+    let finishEstimate!: (value: { count: number }) => void;
+    mocks.calculateTokens.mockImplementationOnce(
+      () =>
+        new Promise<{ count: number }>((resolve) => {
+          finishEstimate = resolve;
+        })
+    );
+    mocks.sendRequest.mockImplementation(async (options: LlmRequestOptions) => {
+      vi.setSystemTime(1100);
+      options.onResponseChunk?.({ content: "answer" });
+      vi.setSystemTime(2100);
+      options.onResponseChunk?.({ finishReason: "stop" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(first.status).toBe("complete");
+      const usage = { promptTokens: 10, completionTokens: 40, totalTokens: 50 };
+      options.onResponseChunk?.({ usage });
+      await vi.advanceTimersByTimeAsync(0);
+      finishEstimate({ count: 6 });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(first.metadata).toMatchObject({
+        usage,
+        providerUsage: usage,
+        contentTokens: 40,
+        tokensPerSecond: 40,
+        requestEndTime: 2100,
+      });
+      vi.setSystemTime(11000);
+      options.onResponseChunk?.({
+        responseId: "chatcmpl-vcp-1",
+        content: "tool",
+      });
+      options.onResponseChunk?.({
+        responseId: "chatcmpl-VCP-separator-1",
+        content: "\n",
+      });
+      vi.setSystemTime(11100);
+      options.onResponseChunk?.({ content: "next" });
+      const next = session.nodes[session.activeLeafId];
+      vi.setSystemTime(12100);
+      options.onResponseChunk?.({ finishReason: "stop" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(next.metadata).toMatchObject({
+        usage: {
+          promptTokens: 11,
+          completionTokens: 4,
+          totalTokens: 15,
+          isLocalEstimated: true,
+        },
+        estimatedUsage: { completionTokens: 4, isLocalEstimated: true },
+        contentTokens: 4,
+        tokensPerSecond: 4,
+        requestStartTime: 11000,
+        firstTokenTime: 11100,
+        requestEndTime: 12100,
+      });
+      expect(next.metadata?.providerUsage).toBeUndefined();
+      return { content: "merged response" };
+    });
+    await execute(session);
+    expect(first.metadata?.providerUsage?.completionTokens).toBe(40);
+  });
+});
 // Stream consumers must observe reasoning transitions before the throttled body
 // is persisted, including nodes created by VCP response splitting.
 describe("live reasoning activity", () => {
@@ -205,6 +420,73 @@ describe("live reasoning activity", () => {
     mocks.settings.value.uiPreferences.splitVcpResponses = false;
     vi.clearAllTimers();
     vi.useRealTimers();
+  });
+
+  it("records reasoning transitions once and freezes timing across body chunks", () => {
+    const node = useNodeManager().createNode({
+      role: "assistant",
+      content: "",
+      parentId: null,
+      status: "waiting",
+    });
+    const session: ChatSessionDetail = {
+      id: "session",
+      nodes: { [node.id]: node },
+      rootNodeId: node.id,
+      activeLeafId: node.id,
+      updatedAt: new Date().toISOString(),
+      history: [],
+      historyIndex: -1,
+    };
+    const handler = useChatResponseHandler();
+    const start = Date.now();
+    const timingLogs = () =>
+      mocks.logger.debug.mock.calls
+        .map(([, data]) => data)
+        .filter((data) => data?.nodeId === node.id && data.startTime);
+    const send = (elapsed: number, chunk: string, isReasoning = false) => {
+      vi.setSystemTime(start + elapsed);
+      handler.handleStreamUpdate(session, node.id, chunk, isReasoning);
+    };
+
+    try {
+      // Several reasoning chunks arrive before the first animation frame.
+      send(0, "think", true);
+      send(100, " more", true);
+      expect(timingLogs()).toHaveLength(1);
+      send(1000, "answer");
+      const ended = { ...node.metadata };
+      send(2000, " part two");
+      send(3000, " part three");
+      expect(timingLogs()).toHaveLength(2);
+      expect(node.metadata).toMatchObject({
+        reasoningActive: false,
+        reasoningEndTime: start + 1000,
+        reasoningDurationMs: 1000,
+        reasoningContent: "think more",
+      });
+      expect(node.metadata?.reasoningEndTime).toBe(ended.reasoningEndTime);
+
+      // A later reasoning phase in the same reply still accumulates its duration.
+      send(4000, "resume", true);
+      send(4100, " thinking", true);
+      send(4500, "continued answer");
+      send(5000, " final part");
+      handler.completeStreamSegment(session, node.id);
+      expect(timingLogs()).toHaveLength(4);
+      expect(node.metadata).toMatchObject({
+        reasoningActive: false,
+        reasoningEndTime: start + 4500,
+        reasoningDurationMs: 1500,
+        reasoningContent: "think moreresume thinking",
+      });
+      expect(timingLogs().filter((data) => data.endTime)).toEqual([
+        expect.objectContaining({ endTime: start + 1000, duration: 1000 }),
+        expect.objectContaining({ endTime: start + 4500, duration: 1500 }),
+      ]);
+    } finally {
+      disposeStreamingMessageSource(node.id);
+    }
   });
 
   // Tool cards read node.content directly, so received results must be visible

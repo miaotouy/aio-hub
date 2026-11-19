@@ -88,7 +88,7 @@ function resolveRerankEndpoint(profile: ProviderProfile): string {
     : `${profile.baseUrl}/`;
   if (custom) return `${host}${custom.replace(/^\//, "")}`;
   if (profile.provider === "cohere") {
-    return `${host.replace(/v1\/$/, "")}v2/rerank`;
+    return `${host.replace(/v[12]\/$/, "")}v2/rerank`;
   }
   return /v1\/$/.test(host) ? `${host}rerank` : `${host}v1/rerank`;
 }

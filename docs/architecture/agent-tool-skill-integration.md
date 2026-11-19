@@ -483,15 +483,15 @@ graph TD
 │   BackgroundTaskRegistry         │  Companion Dock / 任务中心     │
 │   任务状态机、快照、持久化、通知 │  只读伴生分栏透视、人工干预叫停│
 ├──────────────────────────────────┴────────────────────────────────┤
-│           Background JS Runtime (PoC / 脱离 UI 视窗)              │
-│   src/background-runtime 独立后台 WebView + Tauri IPC Bridge      │
+│             当前窗口中的共享聊天编排与工具执行链                   │
+│        llmChatService → runChatOrchestration                      │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-### 8.1. 后台运行时 (Background JS Runtime Bridge)
+### 8.1. 执行生命周期
 
-- **定位与解耦**: 落地于 `src/background-runtime`，依托 Tauri 后台无头/独立 JS 运行时 Bridge，摆脱主 UI 窗口的生命周期限制，验证脱离 UI 窗口的长效运行。
-- **IPC 通信协议**: 通过 `BACKGROUND_JS_RUNTIME_EVENTS`（`request` / `response` / `ready`）与 Tauri command (`background_runtime_ready`, `background_runtime_heartbeat`) 维持保活心跳与双向消息调度。
+- 当前维护版通过 `sub-agent.registry` 调用 `llmChatService`，在持有该服务的窗口中执行共享聊天编排、模型请求与工具调用。任务状态和操作沿 `BackgroundTaskRegistry`、任务队列及审批桥同步。
+- 2026-11-19 核对后移除 Tauri 隐藏 WebView PoC：该窗口只提供 ping、运行信息与心跳，业务请求由原窗口执行链处理。任务脱离所有窗口继续执行属于 dev 大重构的交付范围。
 
 ### 8.2. 任务中心与可观测性调度 (Observability & Intervention)
 

@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import type { ControlStep, ControlTarget } from "./protocol";
 import type { DevControlDescription } from "../../src/dev/control/protocol";
 import { CONTROL_ROOT, validateInstance, type DevInstance } from "./discovery";
@@ -163,7 +164,7 @@ export class EmbeddedConnection {
       timeout
     );
     const windows: DevControlDescription[] = [];
-    for (const label of labels.filter((label) => label !== "background-js")) {
+    for (const label of labels) {
       try {
         const description = await this.describeLabel(
           label,
@@ -239,7 +240,7 @@ export class EmbeddedConnection {
       left()
     );
     const after = await this.call(screenshotPlan, input, left());
-    if (JSON.stringify(plan) !== JSON.stringify(after))
+    if (!isDeepStrictEqual(plan, after))
       throw new ControlError(
         "SCREENSHOT_CHANGED",
         "截图期间敏感区域或视口发生变化，已中止保存。",

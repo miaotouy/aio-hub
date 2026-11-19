@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { ref, computed } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import {
@@ -41,6 +42,8 @@ const sortOrder = ref<"asc" | "desc">("desc");
 
 // 重命名相关
 const renameDialogVisible = ref(false);
+const { visible: pageRenameDialogVisible } =
+  usePageOverlay(renameDialogVisible);
 const renamingId = ref<string | null>(null);
 const newName = ref("");
 
@@ -295,7 +298,7 @@ const toggleSortOrder = () => {
 
     <!-- 重命名对话框 -->
     <el-dialog
-      v-model="renameDialogVisible"
+      v-model="pageRenameDialogVisible"
       title="重命名会话"
       width="340px"
       append-to-body

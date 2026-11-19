@@ -92,7 +92,7 @@
 
     <!-- 添加媒体对话框 -->
     <el-dialog
-      v-model="dialogVisible"
+      v-model="pageDialogVisible"
       :title="dialogTitle"
       width="400px"
       destroy-on-close
@@ -124,6 +124,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { ref, computed, reactive } from "vue";
 import { invoke } from "@/platform/native/core";
 import {
@@ -163,6 +164,7 @@ defineExpose({ rootEl });
 
 // === Dialog 逻辑 ===
 const dialogVisible = ref(false);
+const { visible: pageDialogVisible } = usePageOverlay(dialogVisible);
 const currentMediaType = ref<MediaType>("image");
 
 const mediaForm = reactive({

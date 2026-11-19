@@ -68,3 +68,9 @@
 2. **轻量 CLI (`aiohubctl`)**：
    - 读取 `control.json` 自动附带 Token 发送 NDJSON 指令（`observe` / `click` / `fill` / `select` / `navigate` / `state` / `action`）。
    - 保持无状态或轻量会话转发，后续按需在其上薄封装一层 MCP stdio 适配器即可。
+
+## 2026-11-07 首轮实施
+
+按上述裁剪路线完成桌面宿主控制、前端受限观察与操作、敏感区域标记、工具注册表桥接，以及面向聊天跳动调查的布局环形记录。启用方式采用单一开关，记录与控制一同启动；CLI 支持仓库入口和独立单文件模块。全量组件语义补齐继续分批推进，本轮补齐了窗口控制按钮并适配 Element Plus 可见包装控件。
+
+实现入口和验证结果见[正式版控制架构](../architecture/production-agent-control-architecture.md)，操作示例见[使用指南](../guide/production-control.md)。

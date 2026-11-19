@@ -14,6 +14,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { sessionLoader } from "../session-loader";
+import { createMessageFormatters } from "../../pipeline/processors/message-format-processors";
 import { VcpStreamSegmenter } from "../../tool-calling/vcp-stream-segmenter";
 import type { LlmResponseChunk } from "@aiohub/llm-core";
 import type {
@@ -193,6 +194,105 @@ describe("sessionLoader", () => {
     );
     await sessionLoader.execute(before);
     expect(before.messages.map((m) => m.sourceId)).toEqual(["u", "a"]);
+  });
+
+  it.each(["system", "user", "assistant"] as const)(
+    "keeps %s summary boundaries through role conversion and merging",
+    async (role) => {
+      const content = [
+        "Earlier context",
+        "```ts",
+        "const value = 1;",
+        "```",
+        "````",
+      ].join("\n");
+      const nodes = {
+        root: node("root", null, "system", "root"),
+        old: node("old", "root", "user", "old question"),
+        summary: node("summary", "old", role, content),
+        next: node(
+          "next",
+          "summary",
+          role === "assistant" ? "assistant" : "user",
+          "latest message"
+        ),
+      };
+      nodes.summary.metadata = {
+        isCompressionNode: true,
+        compressedNodeIds: ["old"],
+      };
+      const context = createContext({
+        id: "summary-boundaries",
+        nodes,
+        rootNodeId: "root",
+        activeLeafId: "next",
+        updatedAt: "2026-11-15",
+        history: [],
+        historyIndex: -1,
+      });
+      const { handleConvertSystemToUser, handleMergeConsecutiveRoles } =
+        createMessageFormatters({
+          logger: {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+          },
+          getContextTokenCalculator: vi.fn(),
+        });
+
+      await sessionLoader.execute(context);
+
+      const framed = "\n[上下文摘要]\n`````\n" + content + "\n`````\n";
+      expect(context.messages.map((message) => message.content)).toEqual([
+        framed,
+        "latest message",
+      ]);
+      const separator = "\n\n---\n\n";
+      const merged = handleMergeConsecutiveRoles(
+        handleConvertSystemToUser(context.messages),
+        separator
+      );
+      expect(merged).toMatchObject([
+        {
+          role: role === "assistant" ? "assistant" : "user",
+          content: framed + separator + "latest message",
+        },
+      ]);
+      expect(nodes.summary.content).toBe(content);
+      await sessionLoader.execute(context);
+      expect(context.messages[0].content).toBe(framed);
+    }
+  );
+
+  it("frames summaries after HTML conversion on fresh and cached builds", async () => {
+    const nodes = {
+      root: node("root", null, "system", "root"),
+      summary: node("summary", "root", "user", "<p>Earlier <b>context</b></p>"),
+      next: node("next", "summary", "user", "latest message"),
+    };
+    nodes.summary.metadata = { isCompressionNode: true, compressedNodeIds: [] };
+    const context = createContext({
+      id: "html-summary-boundaries",
+      nodes,
+      rootNodeId: "root",
+      activeLeafId: "next",
+      updatedAt: "2026-11-15",
+      history: [],
+      historyIndex: -1,
+    });
+    context.settings.contextOptimization = {
+      convertHtmlToMd: true,
+      htmlToMdLastMessages: 1,
+    };
+    const expected =
+      "\n[上下文摘要]\n```\nEarlier **context**\n[note: this message was converted from HTML to Markdown for context compression]\n```\n";
+
+    await sessionLoader.execute(context);
+    expect(context.messages[0].content).toBe(expected);
+    await sessionLoader.execute(context);
+    expect(context.messages[0].content).toBe(expected);
+    expect(nodes.summary.content).toBe("<p>Earlier <b>context</b></p>");
   });
 
   it("loads preview history only up to the requested target node", async () => {
@@ -474,6 +574,32 @@ describe("VCP history send projection", () => {
       );
     }
   );
+
+  it("can keep split VCP history separate when replay merge is disabled", async () => {
+    const nodes = {
+      root: node("root", null, "system", "preset", ["u"]),
+      u: node("u", "root", "user", "question", ["a"]),
+      a: mark(node("a", "u", "assistant", "request", ["t"]), "request-1"),
+      t: mark(node("t", "a", "tool", "result", ["b"]), "request-1"),
+      b: mark(node("b", "t", "assistant", "answer"), "request-1"),
+    };
+    const context = createContext(session(nodes, "b"));
+    Object.assign(context, {
+      isVcpTextChannel: true,
+      settings: { uiPreferences: { mergeVcpHistory: false } },
+    });
+
+    await sessionLoader.execute(context);
+
+    expect(
+      context.messages.map((message) => [message.role, message.content])
+    ).toEqual([
+      ["user", "question"],
+      ["assistant", "request"],
+      ["user", "result"],
+      ["assistant", "answer"],
+    ]);
+  });
 
   it.each(["interrupt", ""])(
     "respects user ancestry and request boundaries with user text=%j",

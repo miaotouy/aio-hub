@@ -12,7 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ref, watch, type ComputedRef, type Ref } from "vue";
+import {
+  getCurrentScope,
+  onScopeDispose,
+  ref,
+  watch,
+  type ComputedRef,
+  type Ref,
+} from "vue";
 import { useLlmKeyManager } from "@/composables/useLlmKeyManager";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { customMessage } from "@/utils/customMessage";
@@ -39,10 +46,22 @@ export function useConnectionTest(
   const modelProbeResults = ref<Record<string, ChannelProbeResult>>({});
   const batchProgress = ref<BatchProbeProgress>(createEmptyBatchProgress());
   let batchController: AbortController | undefined;
+  let keyBatchController: AbortController | undefined;
+  const isKeyBatchTesting = ref(false);
+  const cancelKeyBatchTest = () => {
+    keyBatchController?.abort("结束密钥检查");
+    keyBatchController = undefined;
+    isKeyBatchTesting.value = false;
+    keyTestLoading.value = {};
+  };
+  let channelEpoch = 0;
 
   watch(
     () => selectedProfile.value?.id,
     () => {
+      ++channelEpoch;
+      cancelKeyBatchTest();
+      isTestingConnection.value = false;
       batchController?.abort("切换渠道");
       batchController = undefined;
       isBatchTesting.value = false;
@@ -51,22 +70,31 @@ export function useConnectionTest(
       modelListResult.value = undefined;
       modelProbeResults.value = {};
       batchProgress.value = createEmptyBatchProgress();
-    }
+    },
+    { flush: "sync" }
   );
+  if (getCurrentScope())
+    onScopeDispose(() => {
+      ++channelEpoch;
+      batchController?.abort("关闭渠道设置");
+      cancelKeyBatchTest();
+    });
 
   const testConnection = async () => {
     if (!selectedProfile.value) return;
+    const epoch = channelEpoch;
     isTestingConnection.value = true;
     try {
       const result = await probeService.probe({
         kind: "model-list",
-        profile: editForm.value,
+        profile: cloneProfile(editForm.value),
       });
+      if (epoch !== channelEpoch) return result;
       modelListResult.value = result;
       showResultMessage(result, "模型列表");
       return result;
     } finally {
-      isTestingConnection.value = false;
+      if (epoch === channelEpoch) isTestingConnection.value = false;
     }
   };
 
@@ -79,16 +107,18 @@ export function useConnectionTest(
     } = {}
   ) => {
     if (!selectedProfile.value) return;
+    const epoch = channelEpoch;
     modelTestLoading.value[model.id] = true;
     try {
       const result = await probeService.probe({
         kind: "inference",
-        profile: editForm.value,
+        profile: cloneProfile(editForm.value),
         modelId: model.id,
         endpointType: options.endpointType,
         stream: options.stream,
         allowCostlyMedia: options.allowCostlyMedia,
       });
+      if (epoch !== channelEpoch) return result;
       modelProbeResults.value = {
         ...modelProbeResults.value,
         [model.id]: result,
@@ -96,7 +126,7 @@ export function useConnectionTest(
       showResultMessage(result, model.name || model.id);
       return result;
     } finally {
-      modelTestLoading.value[model.id] = false;
+      if (epoch === channelEpoch) modelTestLoading.value[model.id] = false;
     }
   };
 
@@ -114,6 +144,7 @@ export function useConnectionTest(
       return;
     }
 
+    const epoch = channelEpoch;
     keyTestLoading.value[key] = true;
     try {
       const snapshot = cloneProfile(editForm.value);
@@ -125,10 +156,51 @@ export function useConnectionTest(
         apiKey: key,
       });
       await applyKeyHealthResult(snapshot.id, key, result);
-      showResultMessage(result, "Key");
+      if (epoch === channelEpoch) showResultMessage(result, "Key");
       return result;
     } finally {
-      keyTestLoading.value[key] = false;
+      if (epoch === channelEpoch) keyTestLoading.value[key] = false;
+    }
+  };
+
+  const handleBatchTestKeys = async ({
+    keys,
+    modelId,
+  }: {
+    keys: string[];
+    modelId: string;
+  }) => {
+    if (!selectedProfile.value) return;
+    const snapshot = cloneProfile(editForm.value);
+    if (!snapshot.models.some((model) => model.id === modelId)) {
+      customMessage.error("未找到测试模型");
+      return;
+    }
+    cancelKeyBatchTest();
+    const controller = new AbortController();
+    keyBatchController = controller;
+    isKeyBatchTesting.value = true;
+    const epoch = channelEpoch;
+    syncKeyStates(snapshot);
+    keys.forEach((key) => {
+      keyTestLoading.value[key] = true;
+    });
+    try {
+      return await probeService.probeKeyBatch({
+        profile: snapshot,
+        modelId,
+        keys: [...keys],
+        signal: controller.signal,
+        onResult: async (key, result) => {
+          await applyKeyHealthResult(snapshot.id, key, result);
+          if (epoch === channelEpoch && keyBatchController === controller) {
+            keyTestLoading.value[key] = false;
+            showResultMessage(result, "Key");
+          }
+        },
+      });
+    } finally {
+      if (keyBatchController === controller) cancelKeyBatchTest();
     }
   };
 
@@ -143,7 +215,11 @@ export function useConnectionTest(
   ) => {
     if (!selectedProfile.value || modelIds.length === 0) return [];
     batchController?.abort();
-    batchController = new AbortController();
+    const controller = new AbortController();
+    batchController = controller;
+    const epoch = channelEpoch;
+    const isCurrentBatch = () =>
+      epoch === channelEpoch && batchController === controller;
     isBatchTesting.value = true;
     batchProgress.value = {
       ...createEmptyBatchProgress(),
@@ -155,14 +231,15 @@ export function useConnectionTest(
 
     try {
       const results = await probeService.probeBatch({
-        profile: editForm.value,
+        profile: cloneProfile(editForm.value),
         modelIds,
         concurrency: options.concurrency,
         endpointType: options.endpointType,
         stream: options.stream,
         allowCostlyMedia: options.allowCostlyMedia,
-        signal: batchController.signal,
+        signal: controller.signal,
         onResult: (result, completed, total) => {
+          if (!isCurrentBatch()) return;
           if (result.modelId) {
             modelProbeResults.value = {
               ...modelProbeResults.value,
@@ -183,6 +260,7 @@ export function useConnectionTest(
           };
         },
       });
+      if (!isCurrentBatch()) return results;
       const nextResults = { ...modelProbeResults.value };
       for (const result of results) {
         if (!result.modelId) continue;
@@ -202,11 +280,13 @@ export function useConnectionTest(
       );
       return results;
     } finally {
-      modelIds.forEach((modelId) => {
-        modelTestLoading.value[modelId] = false;
-      });
-      isBatchTesting.value = false;
-      batchController = undefined;
+      if (isCurrentBatch()) {
+        modelIds.forEach((modelId) => {
+          modelTestLoading.value[modelId] = false;
+        });
+        isBatchTesting.value = false;
+        batchController = undefined;
+      }
     }
   };
 
@@ -260,6 +340,9 @@ export function useConnectionTest(
     testConnection,
     handleTestModel,
     handleTestKey,
+    handleBatchTestKeys,
+    isKeyBatchTesting,
+    cancelKeyBatchTest,
     handleBatchTestModels,
     cancelBatchTest,
   };

@@ -114,7 +114,7 @@ export const settingsModules: SettingsModule[] = [
   },
   {
     id: "log-settings",
-    title: "日志配置",
+    title: "日志与诊断",
     component: defineAsyncComponent(
       () => import("../views/Settings/general/LogSettings.vue")
     ),
@@ -225,8 +225,8 @@ export const settingsPages: SettingsPage[] = [
   },
   {
     id: "log-settings",
-    title: "日志",
-    description: "配置日志输出、文件保留和日志操作。",
+    title: "日志与诊断",
+    description: "本机调试接管、现场记录与日志输出。",
     groupId: "advanced",
     moduleIds: ["log-settings"],
   },

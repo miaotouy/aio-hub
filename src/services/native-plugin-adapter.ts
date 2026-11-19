@@ -26,6 +26,7 @@ import { pluginConfigService } from "./plugin-config.service";
 import { pluginManager } from "./plugin-manager";
 import { pluginEnvironmentService } from "./plugin-environment.service";
 import { invoke } from "@/platform/native/core";
+import { isElectronRuntime } from "@/platform/core/env";
 import { path } from "@/platform/native/sdk";
 import { getCurrentPlatform } from "./plugin-loader";
 
@@ -82,7 +83,7 @@ export class NativePluginAdapter implements PluginProxy {
       await invoke("load_native_plugin", {
         pluginId: this.manifest.id,
         libraryPath,
-        installPath: this.installPath,
+        ...(isElectronRuntime() ? { installPath: this.installPath } : {}),
         reloadable: this.manifest.native?.reloadable ?? false,
       });
 

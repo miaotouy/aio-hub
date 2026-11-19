@@ -33,6 +33,26 @@ describe("messageStatus", () => {
     expect(presentation).toMatchObject({ status, label });
   });
 
+  it("distinguishes internal preparation from waiting for the model response", () => {
+    expect(
+      getMessageStatusPresentation(
+        createMessage({
+          status: "waiting",
+          metadata: { waitingPhase: "preparing" },
+        })
+      )
+    ).toMatchObject({ status: "waiting", label: "等待中" });
+
+    expect(
+      getMessageStatusPresentation(
+        createMessage({
+          status: "waiting",
+          metadata: { waitingPhase: "requesting" },
+        })
+      )
+    ).toMatchObject({ status: "waiting", label: "请求中" });
+  });
+
   it("shows stopped messages with a stopped label instead of a generic error", () => {
     expect(
       getMessageStatusPresentation(

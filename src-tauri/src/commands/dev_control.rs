@@ -43,11 +43,17 @@ pub fn dev_control_identity(window: tauri::WebviewWindow) -> Option<DevControlId
 /// All development WebViews sharing a profile need the same environment options.
 pub fn configure_webview<'a, R: tauri::Runtime, M: tauri::Manager<R>>(
     builder: tauri::WebviewWindowBuilder<'a, R, M>,
+    _config: &tauri::Config,
 ) -> tauri::WebviewWindowBuilder<'a, R, M> {
     #[cfg(debug_assertions)]
     let builder = if std::env::var("AIO_DEV_CONTROL").as_deref() == Ok("1") {
         builder.initialization_script(include_str!("dev_control_init.js"))
     } else { builder };
+
+    // WebView2 resolves its default profile through Windows known folders,
+    // independently of the process APPDATA override.
+    #[cfg(all(debug_assertions, target_os = "windows"))]
+    let builder = builder.data_directory(crate::get_app_data_dir(_config).join("webview2-profile"));
 
     #[cfg(all(debug_assertions, target_os = "windows"))]
     {

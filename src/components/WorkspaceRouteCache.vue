@@ -11,6 +11,8 @@ import {
   type VNode,
 } from "vue";
 
+import { providePageActivity } from "@/composables/usePageActivity";
+
 const props = defineProps<{
   component?: VNode;
   cacheKey: string;
@@ -26,6 +28,7 @@ function createEntry() {
     name: `WorkspaceRoute${nextId++}`,
     props: { page: Object as PropType<VNode> },
     setup(entryProps, { slots }) {
+      providePageActivity();
       // 每个缓存项持有自己的 VNode；切换路由时停用项仍保留原页面。
       return () =>
         h(Suspense, null, {

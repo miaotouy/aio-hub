@@ -5,7 +5,6 @@ import type {
 
 /** Serialized into the WebView; native identity also works during frontend failure. */
 export async function readPageDescription(): Promise<DevControlDescription | null> {
-  if (location.pathname === "/background-js.html") return null;
   const bridge = window.__AIO_DEV_CONTROL__;
   if (bridge) return { ...bridge.describe(), bridgeAvailable: true };
   const internals = (

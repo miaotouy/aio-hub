@@ -1,6 +1,6 @@
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 // SPDX-License-Identifier: Apache-2.0
-import { mount, type VueWrapper } from "@vue/test-utils";
+import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import ElementPlus from "element-plus";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { defineComponent, h, KeepAlive, nextTick, ref } from "vue";
@@ -59,8 +59,30 @@ vi.mock("@/composables/useThemeAppearance", async () => {
   const { ref } = await import("vue");
   return { useThemeAppearance: () => ({ appearanceSettings: ref({}) }) };
 });
-vi.mock("../../export/ExportBranchDialog.vue", () => ({
-  default: { template: "<div />" },
+const { exportMarkdown } = vi.hoisted(() => ({
+  exportMarkdown: vi.fn(
+    async (
+      _index: ChatSessionIndex,
+      detail: ChatSessionDetail,
+      nodeId: string
+    ) => detail.nodes[nodeId].content
+  ),
+}));
+vi.mock("../../../composables/features/useExportManager", () => ({
+  useExportManager: () => ({
+    exportBranchAsMarkdown: exportMarkdown,
+    exportBranchAsJson: vi.fn(),
+    exportBranchAsRaw: vi.fn(),
+  }),
+}));
+vi.mock("../../../composables/chat/useChatExecutor", () => ({
+  useChatExecutor: () => ({ getContextForPreview: vi.fn() }),
+}));
+vi.mock("../../export/ExportPreviewSection.vue", () => ({
+  default: {
+    props: ["content"],
+    template: '<pre data-testid="export-preview">{{ content }}</pre>',
+  },
 }));
 vi.mock("../MessageDataEditor.vue", () => ({
   default: { template: "<div />" },
@@ -92,7 +114,10 @@ function mountMenubar(pinned = false, compact = false, withSession = false) {
   settings.value.uiPreferences.messageToolbar.pinnedActionIds = pinned
     ? ["copy", "variables"]
     : ["copy"];
-  const currentMessage = ref(message());
+  const currentMessage = ref({
+    ...message(),
+    parentId: withSession ? "root" : null,
+  });
   wrapper = mount(
     defineComponent({
       setup: () => () =>
@@ -111,9 +136,17 @@ function mountMenubar(pinned = false, compact = false, withSession = false) {
                           id: "session",
                           updatedAt: "2026-01-01T00:00:00.000Z",
                           nodes: {
+                            root: {
+                              id: "root",
+                              parentId: null,
+                              childrenIds: [currentMessage.value.id],
+                              role: "system",
+                              status: "complete",
+                              content: "",
+                            },
                             [currentMessage.value.id]: currentMessage.value,
                           },
-                          rootNodeId: currentMessage.value.id,
+                          rootNodeId: "root",
                           activeLeafId: currentMessage.value.id,
                           history: [],
                           historyIndex: -1,
@@ -171,6 +204,7 @@ async function openVariables(pinned: boolean) {
   await waitPresent(".message-variable-snapshot");
 }
 beforeEach(() => {
+  exportMarkdown.mockClear();
   active.value = true;
 });
 afterEach(() => {
@@ -207,6 +241,49 @@ it("offers compression through the selected message when a session is available"
 
   expect(bar.emitted("compress-to-here")).toEqual([[]]);
   await waitGone(".llm-chat-message-toolbar-popover");
+});
+
+// Protects preview work lifetime during streaming and freshness when reopening export.
+it("keeps export previews idle while closed and refreshes the selected branch while open", async () => {
+  const { currentMessage } = mountMenubar(false, false, true);
+  await flushPromises();
+  expect(exportMarkdown).not.toHaveBeenCalled();
+
+  currentMessage.value.content = "streaming before opening";
+  await nextTick();
+  await flushPromises();
+  expect(exportMarkdown).not.toHaveBeenCalled();
+
+  await click('[data-testid="message-toolbar-more"]');
+  await click('[data-action-id="export"]');
+  await vi.waitFor(() =>
+    expect(
+      document.querySelector('[data-testid="export-preview"]')?.textContent
+    ).toBe("streaming before opening")
+  );
+
+  currentMessage.value.content = "streaming while open";
+  await nextTick();
+  await flushPromises();
+  expect(
+    document.querySelector('[data-testid="export-preview"]')?.textContent
+  ).toBe("streaming while open");
+
+  await click('[role="dialog"] .dialog-close-btn');
+  await waitGone('[role="dialog"]');
+  const callsAfterClose = exportMarkdown.mock.calls.length;
+  currentMessage.value.content = "streaming after closing";
+  await nextTick();
+  await flushPromises();
+  expect(exportMarkdown).toHaveBeenCalledTimes(callsAfterClose);
+
+  await click('[data-testid="message-toolbar-more"]');
+  await click('[data-action-id="export"]');
+  await vi.waitFor(() =>
+    expect(
+      document.querySelector('[data-testid="export-preview"]')?.textContent
+    ).toBe("streaming after closing")
+  );
 });
 
 // The detail dialog must outlive its originating menu, retain filters and restore a connected focus target.

@@ -18,6 +18,8 @@
 
 /** 仓库配置 */
 export interface RepositoryConfig {
+  /** 添加时分配并持久化的仓库 UUID，供请求关联使用 */
+  id: string;
   /** 仓库绝对路径 */
   path: string;
   /** 仓库名（目录名） */

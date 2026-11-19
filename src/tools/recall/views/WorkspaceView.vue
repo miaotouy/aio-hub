@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { onMounted, ref, computed, watch } from "vue";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import { useRecallCollection } from "../composables/useRecallCollection";
@@ -44,6 +45,7 @@ const layoutMode = computed(() => {
 const isSelectionMode = ref(false);
 const selectedEntryIds = ref<Set<string>>(new Set());
 const showCreateDialog = ref(false);
+const { visible: pageShowCreateDialog } = usePageOverlay(showCreateDialog);
 const showSettings = ref(false);
 const showRecallListDialog = ref(false);
 const newBaseForm = ref({
@@ -240,7 +242,7 @@ const handleDeselectAllEntries = () => {
 
     <!-- 创建对话框 -->
     <el-dialog
-      v-model="showCreateDialog"
+      v-model="pageShowCreateDialog"
       title="创建思绪集"
       width="400px"
       append-to-body

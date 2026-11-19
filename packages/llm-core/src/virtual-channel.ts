@@ -69,6 +69,17 @@ export class ChannelExecutionError extends Error {
     this.name = "ChannelExecutionError";
   }
 }
+// Native hosts report connection failures as coded errors rather than Fetch TypeError.
+const retryableConnectionCodes = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EPIPE",
+  "ETIMEDOUT",
+]);
 export function isChannelRetryableError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const e = error as {
@@ -94,6 +105,7 @@ export function isChannelRetryableError(error: unknown): boolean {
     );
   return (
     e.name === "TimeoutError" ||
+    (typeof e.code === "string" && retryableConnectionCodes.has(e.code)) ||
     (error instanceof TypeError &&
       /fetch|network|connect/i.test(e.message ?? ""))
   );

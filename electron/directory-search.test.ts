@@ -87,22 +87,60 @@ afterEach(async () => {
   await service.shutdown();
 });
 describe("directory search host ownership and lifecycle", () => {
-  it("preserves global single-search budget and returns the competing request's busy summary", async () => {
+  it("queues searches in arrival order, snapshots arguments and preserves the one-worker budget", async () => {
     const first = await start();
-    const busy = await call(
-      "dir_search",
-      { request: { searchId: "search-b" } },
-      2
-    );
-    expect(busy).toMatchObject({
-      searchId: "search-b",
-      stopReason: "busy",
-      truncated: true,
-      filesScanned: 0,
+    const request = { searchId: "search-b", pattern: "before" };
+    const second = call("dir_search", { request }, 2);
+    const third = call("dir_search", { request: { searchId: "search-c" } }, 3);
+    request.pattern = "after";
+    let settled = false;
+    void second.then(() => {
+      settled = true;
     });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(settled).toBe(false);
     expect(runtimes).toHaveLength(1);
     first.runtime.resolve(JSON.stringify(done()));
     expect(await first.result).toEqual(done());
+    await vi.waitFor(() => expect(runtimes).toHaveLength(2));
+    expect(JSON.parse(runtimes[1].search.mock.calls[0][0])).toEqual({
+      searchId: "search-b",
+      pattern: "before",
+    });
+    runtimes[1].resolve(JSON.stringify(done("search-b")));
+    expect(await second).toEqual(done("search-b"));
+    await vi.waitFor(() => expect(runtimes).toHaveLength(3));
+    runtimes[2].resolve(JSON.stringify(done("search-c")));
+    expect(await third).toEqual(done("search-c"));
+  });
+  it("cancels an owned queued search immediately without cancelling the active worker", async () => {
+    const first = await start();
+    const second = call("dir_search", { request: { searchId: "search-b" } }, 2);
+    await call("dir_search_cancel", { searchId: "search-b" }, 1);
+    await call("dir_search_cancel", { searchId: "search-b" }, 2);
+    expect(await second).toMatchObject({
+      searchId: "search-b",
+      cancelled: true,
+    });
+    expect(first.runtime.cancel).not.toHaveBeenCalled();
+    expect(runtimes).toHaveLength(1);
+    first.runtime.resolve(JSON.stringify(done()));
+    await first.result;
+  });
+  it("drops a disposed owner's queued searches and lets other owners continue", async () => {
+    const first = await start();
+    const second = call("dir_search", { request: { searchId: "search-b" } }, 2);
+    const third = call("dir_search", { request: { searchId: "search-c" } }, 3);
+    service.disposeOwner(2);
+    expect(await second).toMatchObject({ cancelled: true });
+    first.runtime.resolve(JSON.stringify(done()));
+    await first.result;
+    await vi.waitFor(() => expect(runtimes).toHaveLength(2));
+    expect(JSON.parse(runtimes[1].search.mock.calls[0][0]).searchId).toBe(
+      "search-c"
+    );
+    runtimes[1].resolve(JSON.stringify(done("search-c")));
+    await third;
   });
   it("delivers streamed and tail batches only to the owner and matching search ID", async () => {
     const task = await start();
@@ -174,10 +212,13 @@ describe("directory search host ownership and lifecycle", () => {
       payload: { searchId: "search-a" },
     });
     service.disposeOwner(1);
+    const queued = call("dir_search", { request: { searchId: "queued" } }, 2);
     let ended = false;
     const drain = service.shutdown().then(() => {
       ended = true;
     });
+    expect(await queued).toMatchObject({ searchId: "queued", cancelled: true });
+    expect(runtimes).toHaveLength(1);
     await new Promise((resolve) => setImmediate(resolve));
     expect(ended).toBe(false);
     task.runtime.resolve(JSON.stringify(done()));
@@ -190,16 +231,18 @@ describe("directory search host ownership and lifecycle", () => {
   });
   it("retains all final batches for completed searches and releases the slot after a native failure", async () => {
     const task = await start();
+    const next = call("dir_search", { request: { searchId: "next" } });
     task.runtime.reject(new Error("invalid regex"));
     await expect(task.result).rejects.toThrow("invalid regex");
-    const retry = await start();
+    await vi.waitFor(() => expect(runtimes).toHaveLength(2));
+    const retry = { result: next, runtime: runtimes[1] };
     retry.runtime.events.push(
       ...Array.from({ length: 20 }, (_, index) => ({
         event: "dir-search-result-batch",
-        payload: { searchId: "search-a", index },
+        payload: { searchId: "next", index },
       }))
     );
-    retry.runtime.resolve(JSON.stringify(done()));
+    retry.runtime.resolve(JSON.stringify(done("next")));
     await retry.result;
     expect(emit).toHaveBeenCalledTimes(20);
   });

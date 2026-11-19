@@ -119,6 +119,15 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "vcp stream split segment 消息 拆分 分段 工具 结果",
       },
       {
+        id: "mergeVcpHistory",
+        label: "VCP 历史发送合并",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.mergeVcpHistory",
+        hint: "发送到 VCP 文本渠道时，将同一次回复拆分出的历史合并回原始顺序。修改后从下一次请求生效。",
+        keywords: "vcp history merge replay send 合并 历史 发送 回放",
+      },
+      {
         id: "searchResultLimit",
         label:
           "会话搜索最大结果 ({{ localSettings.uiPreferences.searchResultLimit }}条)",

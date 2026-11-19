@@ -101,6 +101,24 @@ describe("dir-search actions", () => {
       expect(mockInvoke).not.toHaveBeenCalled();
     });
 
+    it("将旧宿主的 busy 汇总作为执行失败返回，避免调用方当作零匹配", async () => {
+      mockInvoke.mockResolvedValue({
+        filesScanned: 0,
+        filesMatched: 0,
+        totalMatches: 0,
+        bytesRead: 0,
+        durationMs: 0,
+        stopReason: "busy",
+        truncated: true,
+        cancelled: false,
+      });
+      const output = await searchDirectory({
+        path: "C:/repo",
+        pattern: "needle",
+      });
+      expect(output.startsWith("搜索失败:")).toBe(true);
+    });
+
     it("应收集流式 batch 并格式化搜索结果", async () => {
       const reportStatus = vi.fn();
       mockInvoke.mockImplementation(async (command: string) => {

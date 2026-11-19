@@ -37,6 +37,7 @@ export function useChatContextStats(
   const { currentAgentId } = useLlmChatUiState();
   const contextStats = ref<ContextPreviewData["statistics"] | null>(null);
   const isLoadingContextStats = ref(false);
+  const contextStatsError = ref<string | null>(null);
 
   let generation = 0;
   let disposed = false;
@@ -68,6 +69,7 @@ export function useChatContextStats(
         });
         if (!index || !detail || !leafId) {
           contextStats.value = null;
+          contextStatsError.value = null;
           continue;
         }
         try {
@@ -86,9 +88,13 @@ export function useChatContextStats(
           );
           if (!disposed && requestGeneration === generation) {
             contextStats.value = previewData?.statistics ?? null;
+            contextStatsError.value = null;
           }
         } catch (error) {
           if (!disposed && requestGeneration === generation) {
+            contextStats.value = null;
+            contextStatsError.value =
+              error instanceof Error ? error.message : "上下文统计失败，请重试";
             logger.warn("获取上下文统计失败", error);
           }
         }
@@ -104,6 +110,7 @@ export function useChatContextStats(
     if (disposed) return Promise.resolve();
     generation++;
     queuedReason = reason;
+    contextStatsError.value = null;
     isLoadingContextStats.value = true;
     running ??= drainRefreshes();
     return running;
@@ -161,7 +168,10 @@ export function useChatContextStats(
       const [oldSessionId, oldLeafId, oldUpdatedAt, oldIsSending] =
         oldValues || [];
 
-      if (newSessionId !== oldSessionId) contextStats.value = null;
+      if (newSessionId !== oldSessionId) {
+        contextStats.value = null;
+        contextStatsError.value = null;
+      }
 
       logger.debug(`[ContextStats] Watch 触发`, {
         isSending,
@@ -206,6 +216,7 @@ export function useChatContextStats(
 
   return {
     contextStats,
+    contextStatsError,
     isLoadingContextStats,
     refreshContextStats,
   };

@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { onMounted, onUnmounted, ref, computed, watch, nextTick } from "vue";
 import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -47,6 +48,7 @@ const errorHandler = createModuleErrorHandler("recall-monitor-view");
 const levelFilter = ref<string | null>(null);
 const typeFilter = ref<string | null>(null);
 const showStatsDrawer = ref(false);
+const { visible: pageShowStatsDrawer } = usePageOverlay(showStatsDrawer);
 
 const filteredLogs = computed(() => {
   let result = store.monitor.logs;
@@ -358,7 +360,7 @@ function exportLogs(format: "json" | "md" = "json") {
 
     <!-- 统计抽屉 -->
     <el-drawer
-      v-model="showStatsDrawer"
+      v-model="pageShowStatsDrawer"
       title="监控数据概览"
       direction="rtl"
       size="400px"

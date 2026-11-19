@@ -41,6 +41,7 @@ export type ProbeErrorCategory =
   | "unknown";
 
 export interface ProbeModelCapabilities {
+  thinking?: boolean;
   embedding?: boolean;
   rerank?: boolean;
   decision?: boolean;

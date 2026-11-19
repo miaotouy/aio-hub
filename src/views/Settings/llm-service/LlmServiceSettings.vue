@@ -87,6 +87,12 @@ const {
   handleDelete,
   handleToggle,
   resetBaseUrl,
+  saveCurrentProfile,
+  refreshCurrentProfile,
+  saveError,
+  saveConflict,
+  isSaving,
+  isDirty,
 } = useProfileEditor();
 
 const {
@@ -121,6 +127,9 @@ const {
   testConnection,
   handleTestModel,
   handleTestKey,
+  handleBatchTestKeys,
+  isKeyBatchTesting,
+  cancelKeyBatchTest,
   handleBatchTestModels,
   cancelBatchTest,
 } = useConnectionTest(editForm, selectedProfile);
@@ -446,10 +455,6 @@ const createProfilesFromImport = async (drafts: ParsedLlmProfileDraft[]) => {
       completed.push(profile);
     } catch {
       failed.push(profile);
-      const failedIndex = profiles.value.findIndex(
-        (item) => item.id === profile.id
-      );
-      if (failedIndex !== -1) profiles.value.splice(failedIndex, 1);
     }
   }
 
@@ -671,6 +676,29 @@ const networkSettingSummary = computed(() => {
           @delete="handleDelete"
         >
           <template #extra-actions>
+            <span role="status">{{
+              isSaving
+                ? "保存中…"
+                : saveConflict
+                  ? "配置已更新，草稿已保留"
+                  : saveError
+                    ? "保存失败，草稿已保留"
+                    : isDirty
+                      ? "待保存"
+                      : "已保存"
+            }}</span>
+            <el-button
+              v-if="saveError && !saveConflict"
+              size="small"
+              @click="saveCurrentProfile"
+              >重试保存</el-button
+            >
+            <el-button
+              v-if="saveError"
+              size="small"
+              @click="refreshCurrentProfile"
+              >放弃草稿并刷新</el-button
+            >
             <el-button
               type="primary"
               plain
@@ -949,6 +977,7 @@ const networkSettingSummary = computed(() => {
                 <div style="display: flex; gap: 8px; width: 100%">
                   <el-input
                     v-model="apiKeyInput"
+                    data-sensitive
                     type="password"
                     placeholder="可选,某些服务可能不需要。多个密钥用逗号分隔"
                     show-password
@@ -1144,10 +1173,12 @@ const networkSettingSummary = computed(() => {
     <MultiKeyManagerDialog
       v-if="selectedProfile"
       v-model="showMultiKeyManager"
-      :profile="editForm"
+      v-model:profile="editForm"
       :test-loading="keyTestLoading"
-      @update:profile="saveProfile"
+      :batch-testing="isKeyBatchTesting"
       @test-key="handleTestKey"
+      @test-keys="handleBatchTestKeys"
+      @cancel-test="cancelKeyBatchTest"
     />
 
     <!-- 说明弹窗 -->

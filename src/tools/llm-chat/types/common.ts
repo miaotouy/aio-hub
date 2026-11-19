@@ -28,6 +28,9 @@ export type ApiMessageRole = Exclude<MessageRole, "tool">;
 export type MessageStatus =
   "generating" | "waiting" | "queued" | "complete" | "error";
 
+/** 处于 waiting 生命周期时，用于区分内部准备和外部请求等待。 */
+export type MessageWaitingPhase = "preparing" | "requesting";
+
 /**
  * 消息在 UI 中的展示状态。
  * abnormal 是成功响应的异常展示分类，不改变消息的 complete 生命周期状态。

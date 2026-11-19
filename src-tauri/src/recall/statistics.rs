@@ -78,7 +78,7 @@ mod tests {
     use super::*;
     use crate::recall::{
         core::{RecallCollection, RecallEntry},
-        storage::sqlite::SqliteRecallRepository,
+        storage::SqliteRecallRepository,
     };
     use serde_json::json;
     use uuid::Uuid;

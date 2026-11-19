@@ -205,98 +205,99 @@ export async function processRulesWithMacros(
 // 脚本执行引擎
 // =====================
 
-/**
- * 脚本编译缓存
- */
-const scriptCache = new Map<string, Function>();
+export interface RegexReplacementContext {
+  match: string;
+  /** 未参与匹配的捕获组保留 undefined，数组索引与捕获组编号对应。 */
+  groups: Array<string | undefined>;
+  index: number;
+  source: string;
+}
 
-/**
- * 清除脚本缓存
- */
+/** 解析原生 replace 回调参数，兼容末尾附带命名捕获组对象的情况。 */
+export function getRegexReplacementContext(
+  match: string,
+  args: unknown[]
+): RegexReplacementContext {
+  const hasNamedGroups = typeof args[args.length - 1] === "object";
+  const sourceIndex = args.length - (hasNamedGroups ? 2 : 1);
+  return {
+    match,
+    groups: args.slice(0, sourceIndex - 1) as Array<string | undefined>,
+    index: args[sourceIndex - 1] as number,
+    source: args[sourceIndex] as string,
+  };
+}
+
+type ReplacementScript = (
+  match: string,
+  groups: RegexReplacementContext["groups"],
+  index: number,
+  source: string
+) => unknown;
+
+const scriptCache = new Map<string, ReplacementScript>();
+
 export function clearScriptCache() {
   scriptCache.clear();
 }
 
-/**
- * 执行自定义替换脚本
- *
- * @param scriptContent - 脚本内容
- * @param context - 注入变量
- * @returns 替换后的字符串
- */
+function compileReplacementScript(scriptContent: string): ReplacementScript {
+  const compile = (body: string): ReplacementScript =>
+    new Function(
+      "window",
+      "document",
+      "globalThis",
+      "eval",
+      "Function",
+      "process",
+      "require",
+      "console",
+      // eval 只能在非严格的外层绑定；实际脚本在严格函数中执行。
+      // 这些名称遮蔽沿用现有执行约定，不构成不可信代码的隔离边界。
+      `return function(match, groups, index, source) {
+        "use strict";
+        const sandbox = { match, groups, index, source };
+        ${body}
+      };`
+    )(null, null, null, null, null, null, null, {
+      log: console.log.bind(console),
+      warn: console.warn.bind(console),
+      error: console.error.bind(console),
+    });
+
+  try {
+    const expression = scriptContent.trim().replace(/;$/, "");
+    return compile(`return (${expression}\n);`);
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    return compile(scriptContent);
+  }
+}
+
+/** 执行替换脚本；预览可选择抛出错误，渲染默认保留原匹配。 */
 export function executeReplacementScript(
   scriptContent: string,
-  context: {
-    match: string;
-    groups: string[];
-    index: number;
-    source: string;
-  }
+  context: RegexReplacementContext,
+  options: { throwOnError?: boolean } = {}
 ): string {
   try {
     let fn = scriptCache.get(scriptContent);
-
     if (!fn) {
-      // 创建沙箱环境：屏蔽全局危险对象
-      // 使用 new Function 预编译，提高性能
-      // 增加严格模式和受限上下文
-      fn = new Function(
-        "match",
-        "groups",
-        "index",
-        "source",
-        "window",
-        "document",
-        "globalThis",
-        "eval",
-        "Function",
-        "process",
-        "require",
-        "import",
-        "console",
-        `
-        "use strict";
-        const sandbox = { match, groups, index, source };
-        try {
-          const executor = () => {
-            ${scriptContent.includes("return") ? "" : "return " + scriptContent}
-            ${scriptContent}
-          };
-          return executor.call(null);
-        } catch (e) {
-          throw e;
-        }
-        `
-      );
+      fn = compileReplacementScript(scriptContent);
       scriptCache.set(scriptContent, fn);
     }
-
-    // 执行脚本，传入 context 并将全局对象设为 null
-    // 增加对 console 的有限支持，方便调试，但屏蔽危险操作
-    const result = fn(
+    const result = fn.call(
+      null,
       context.match,
       context.groups,
       context.index,
-      context.source,
-      null, // window
-      null, // document
-      null, // globalThis
-      null, // eval
-      null, // Function
-      null, // process
-      null, // require
-      null, // import
-      {
-        log: console.log.bind(console),
-        warn: console.warn.bind(console),
-        error: console.error.bind(console),
-      }
+      context.source
     );
-
     return String(result ?? context.match);
   } catch (error) {
+    if (options.throwOnError) throw error;
     console.warn("[ChatRegex] 脚本执行出错:", error);
-    return context.match; // 出错时回退到原始匹配
+    return context.match;
   }
 }
 
@@ -335,16 +336,10 @@ export function applyRegexRules(
       if (rule.replacementType === "script" && rule.scriptContent) {
         // 脚本替换模式
         result = result.replace(regex, (match, ...args) => {
-          const offset = args[args.length - 2] as number;
-          const source = args[args.length - 1] as string;
-          const groups = args.slice(0, -2).filter((g) => typeof g === "string");
-
-          return executeReplacementScript(rule.scriptContent!, {
-            match,
-            groups,
-            index: offset,
-            source,
-          });
+          return executeReplacementScript(
+            rule.scriptContent!,
+            getRegexReplacementContext(match, args)
+          );
         });
       } else {
         // 正则替换模式
@@ -354,10 +349,8 @@ export function applyRegexRules(
 
         // 处理 trimStrings (后处理捕获组)
         if (rule.trimStrings && rule.trimStrings.length > 0) {
-          result = result.replace(regex, (...args) => {
-            // args: [match, p1, p2, ..., offset, string, groups]
-            const match = args[0] as string; // 获取完整的匹配字符串
-            const groups = args.slice(1, -2); // 排除 offset 和 string
+          result = result.replace(regex, (match, ...args) => {
+            const { groups } = getRegexReplacementContext(match, args);
 
             // 对每个捕获组应用 trimStrings
             let processedReplacement = replacement;

@@ -33,6 +33,7 @@ import {
   completeAndDisposeStreamingMessageSource,
 } from "./useStreamingMessageSources";
 import { buildEmptyResponseDiagnostic } from "./emptyResponseDiagnostics";
+import { getMessagePerformanceMetadata } from "../../utils/messagePerformance";
 import {
   ContinuationTextFilter,
   mergeContinuationText,
@@ -92,7 +93,7 @@ export function useChatResponseHandler() {
 
     metadata.reasoningActive = false;
     metadata.reasoningActiveSince = undefined;
-    if (metadata.reasoningStartTime) {
+    if (wasActive && metadata.reasoningStartTime) {
       metadata.reasoningEndTime = timestamp;
     }
   };
@@ -258,6 +259,7 @@ export function useChatResponseHandler() {
     const node = session.nodes[nodeId];
     if (!node) return;
 
+    const wasReasoningActive = node.metadata?.reasoningActive === true;
     updateReasoningActivity(node, isReasoning);
 
     // 记录首字时间：reasoning/thinking 是用户可见输出，也应参与 TTFT 与速度统计。
@@ -266,17 +268,19 @@ export function useChatResponseHandler() {
         ...node.metadata,
         firstTokenTime: Date.now(),
       };
-      // 收到首个内容后，从「等待中」进入「生成中」
+      // 收到首个内容后，从等待态进入「生成中」，等待阶段已经结束。
+      if (node.metadata?.waitingPhase) {
+        node.metadata = { ...node.metadata, waitingPhase: undefined };
+      }
       node.status = "generating";
     }
 
     if (isReasoning) {
       // 推理内容流式更新（节流）
       if (!node.metadata) node.metadata = {};
-      if (!node.metadata.reasoningContent) {
-        node.metadata.reasoningContent = "";
-        node.metadata.reasoningStartTime ??= Date.now();
-        logger.info("🕐 推理开始时间已记录", {
+      node.metadata.reasoningContent ??= "";
+      if (!wasReasoningActive) {
+        logger.debug("🕐 推理开始时间已记录", {
           nodeId,
           startTime: node.metadata.reasoningStartTime,
         });
@@ -299,16 +303,14 @@ export function useChatResponseHandler() {
         });
       }
     } else {
-      if (node.metadata?.reasoningStartTime) {
+      if (wasReasoningActive) {
         // 强制刷新一次 reasoning 缓冲区
         flushReasoningToNode(session, nodeId);
-        node.metadata.reasoningEndTime ??= Date.now();
-        logger.info("🕐 推理结束时间已记录（正文开始）", {
+        logger.debug("🕐 推理结束时间已记录（正文开始）", {
           nodeId,
           startTime: node.metadata.reasoningStartTime,
           endTime: node.metadata.reasoningEndTime,
-          duration:
-            node.metadata.reasoningEndTime - node.metadata.reasoningStartTime,
+          duration: node.metadata.reasoningDurationMs,
         });
       }
 
@@ -435,7 +437,8 @@ export function useChatResponseHandler() {
     const node = session.nodes[nodeId];
     if (!node) return;
 
-    updateReasoningActivity(node, false);
+    const requestEndTime = node.metadata?.requestEndTime ?? Date.now();
+    updateReasoningActivity(node, false, requestEndTime);
 
     const rState = reasoningUpdateBuffer.get(nodeId);
     if (rState && rState.buffer) {
@@ -464,7 +467,10 @@ export function useChatResponseHandler() {
     node.status = "complete";
     node.metadata = {
       ...node.metadata,
-      requestEndTime: node.metadata?.requestEndTime ?? Date.now(),
+      requestEndTime,
+      ...(node.role === "assistant"
+        ? getMessagePerformanceMetadata({ ...node.metadata, requestEndTime })
+        : {}),
     };
     completeAndDisposeStreamingMessageSource(nodeId);
   };
@@ -602,23 +608,12 @@ export function useChatResponseHandler() {
       responseReasoningContent: response.reasoningContent,
     });
 
-    // 使用 API 返回的 completionTokens 作为助手消息的 contentTokens
-    const contentTokens = response.usage?.completionTokens;
-
-    // 计算性能指标
     const requestEndTime = finalNode.metadata?.requestEndTime ?? Date.now();
-    let tokensPerSecond: number | undefined;
-
-    if (contentTokens && finalNode.metadata?.firstTokenTime) {
-      // 计算生成时间（毫秒）
-      const generationTime = requestEndTime - finalNode.metadata.firstTokenTime;
-      if (generationTime > 0) {
-        // 计算 tokens/s
-        tokensPerSecond = (contentTokens / generationTime) * 1000;
-        // 保留两位小数
-        tokensPerSecond = Math.round(tokensPerSecond * 100) / 100;
-      }
-    }
+    const { contentTokens, tokensPerSecond } = getMessagePerformanceMetadata({
+      ...finalNode.metadata,
+      usage: response.usage,
+      requestEndTime,
+    });
 
     finalNode.metadata = {
       ...finalNode.metadata,

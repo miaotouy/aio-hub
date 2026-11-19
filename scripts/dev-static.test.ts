@@ -73,7 +73,7 @@ describe("static frontend serving", () => {
     publishSnapshot(
       root,
       build("main-v1", {
-        "background-js.html": "background-v1",
+        "danmaku-overlay.html": "overlay-v1",
         "assets/app-v1.js": "export {}",
       })
     );
@@ -93,8 +93,8 @@ describe("static frontend serving", () => {
       expect(await route.text()).toBe("main-v1");
       expect(route.headers.get("cache-control")).toBe("no-store");
     }
-    expect(await (await fetch(`${url}/background-js.html`)).text()).toBe(
-      "background-v1"
+    expect(await (await fetch(`${url}/danmaku-overlay.html`)).text()).toBe(
+      "overlay-v1"
     );
     const script = await fetch(`${url}/assets/app-v1.js`, { method: "HEAD" });
     expect(script.headers.get("content-type")).toContain("javascript");
@@ -114,14 +114,14 @@ describe("static frontend serving", () => {
   it("updates on refresh while retaining one previous set of lazy chunks", async () => {
     const first = build("main-v1", {
       "assets/lazy-v1.js": "v1",
-      "background-js.html": "old-background",
+      "danmaku-overlay.html": "old-overlay",
     });
     publishSnapshot(root, first);
     const second = build("main-v2", { "assets/lazy-v2.js": "v2" });
     publishSnapshot(root, second);
     expect(await (await fetch(url)).text()).toBe("main-v2");
     expect(await (await fetch(`${url}/assets/lazy-v1.js`)).text()).toBe("v1");
-    expect((await fetch(`${url}/background-js.html`)).status).toBe(404);
+    expect((await fetch(`${url}/danmaku-overlay.html`)).status).toBe(404);
     publishSnapshot(root, build("main-v3"));
     expect(await (await fetch(url)).text()).toBe("main-v3");
     expect(await (await fetch(`${url}/assets/lazy-v2.js`)).text()).toBe("v2");

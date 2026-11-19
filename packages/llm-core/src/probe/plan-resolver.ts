@@ -30,7 +30,11 @@ export function resolveProbePlan(
         stream: options.stream === true,
         requiresExplicitConsent: false,
         supported: true,
-        chat: { prompt: "hi", maxTokens: 16 },
+        chat: {
+          prompt: "Reply with just OK.",
+          // Reasoning can consume the output budget before any visible text.
+          maxTokens: model.capabilities?.thinking ? 256 : 16,
+        },
       };
     case "embedding":
       return {

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import TurndownService from "turndown";
+import { formatFencedText } from "../../../utils/fencedText";
 import { mergeVcpResponseHistory } from "../../tool-calling/vcp-history-replay";
 import type {
   ContextProcessor,
@@ -302,6 +303,11 @@ export function createSessionLoader({ logger }: { logger: ContextLogger }) {
           }
         }
 
+        // Add boundaries after HTML conversion so role merging keeps the summary distinct.
+        if (node.metadata?.isCompressionNode) {
+          finalContent = `\n[上下文摘要]\n${formatFencedText(finalContent)}\n`;
+        }
+
         let role = node.role;
         if (
           role === "tool" &&
@@ -355,7 +361,10 @@ export function createSessionLoader({ logger }: { logger: ContextLogger }) {
         messages.push(processableMessage);
       }
 
-      if (context.isVcpTextChannel) {
+      if (
+        context.isVcpTextChannel &&
+        context.settings.uiPreferences?.mergeVcpHistory !== false
+      ) {
         messages = mergeVcpResponseHistory(messages, context.detail.nodes);
       }
 

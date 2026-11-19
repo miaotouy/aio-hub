@@ -409,6 +409,10 @@ function formatSearchResults(
   summary: SearchSummary,
   args: AgentSearchArgs
 ): string {
+  if (summary.stopReason === "busy") {
+    throw new Error("搜索尚未执行：搜索服务忙碌，请稍后重试。");
+  }
+
   const lines: string[] = [];
 
   // 摘要
@@ -434,7 +438,11 @@ function formatSearchResults(
   lines.push("");
 
   if (results.length === 0) {
-    lines.push("未找到匹配项。");
+    lines.push(
+      summary.truncated || summary.cancelled
+        ? "本次搜索已提前结束，尚未收集到匹配项。"
+        : "未找到匹配项。"
+    );
     return lines.join("\n");
   }
 

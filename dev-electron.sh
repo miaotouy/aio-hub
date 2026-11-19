@@ -2,7 +2,7 @@
 # AIO Hub Electron development
 set -e
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
-export PATH="$HOME/.bun/bin:$PATH"
+export PATH="$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
 
 if [[ -f "scripts/vm-sync.sh" ]]; then
   source scripts/vm-sync.sh

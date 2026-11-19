@@ -246,6 +246,50 @@ function findRecoveryCandidates(
   return candidates;
 }
 
+function findRenderingBoundary(
+  text: string,
+  contentStart: number,
+  options: FindVcpBlockBoundaryOptions
+): VcpBlockBoundary {
+  let cursor = contentStart;
+  while (cursor < text.length) {
+    const boundary = findVcpBlockBoundary(text, cursor, options);
+    if (boundary.status !== "interrupted") return boundary;
+    if (!isInlineCodeMarker(text, boundary.nextStartIndex)) return boundary;
+    const marker = options.recoveryStartMarkers.find((candidate) =>
+      text.startsWith(candidate, boundary.nextStartIndex)
+    )!;
+    cursor = boundary.nextStartIndex + marker.length;
+  }
+  return { status: "unclosed" };
+}
+
+/** A quoted protocol example cannot interrupt the enclosing request's display. */
+function isInlineCodeMarker(text: string, index: number): boolean {
+  const lineStart = text.lastIndexOf("\n", index - 1) + 1;
+  const newline = text.indexOf("\n", index);
+  const lineEnd = newline < 0 ? text.length : newline;
+  const ticks = /`+/g;
+  ticks.lastIndex = lineStart;
+  let opening: RegExpExecArray | null;
+  while ((opening = ticks.exec(text)) && opening.index < index) {
+    let slashes = 0;
+    for (let i = opening.index - 1; i >= lineStart && text[i] === "\\"; i--)
+      slashes++;
+    if (slashes % 2) continue;
+    let closing: RegExpExecArray | null;
+    while ((closing = ticks.exec(text)) && closing.index < lineEnd) {
+      if (closing[0].length === opening[0].length) {
+        if (opening.index + opening[0].length <= index && index < closing.index)
+          return true;
+        break;
+      }
+    }
+    if (!closing || closing.index >= lineEnd) return false;
+  }
+  return false;
+}
+
 /**
  * 富文本渲染专用的 VCP 块边界恢复。
  *
@@ -260,7 +304,7 @@ export function findRenderableVcpBlockBoundary(
   options: FindVcpBlockBoundaryOptions,
   fuzzyModeEnabled = true
 ): RenderableVcpBlockBoundary {
-  const strictBoundary = findVcpBlockBoundary(text, contentStart, options);
+  const strictBoundary = findRenderingBoundary(text, contentStart, options);
   if (!fuzzyModeEnabled || strictBoundary.status === "complete") {
     return strictBoundary;
   }

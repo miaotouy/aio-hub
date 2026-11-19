@@ -15,10 +15,17 @@
 import { effectScope, nextTick, ref, type EffectScope } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LlmProfile } from "@/types/llm-profiles";
-const mocks = vi.hoisted(() => ({ profiles: undefined as any, save: vi.fn(), delete: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  profiles: undefined as any,
+  revision: undefined as any,
+  save: vi.fn(),
+  delete: vi.fn(),
+}));
 vi.mock("@/composables/useLlmProfiles", () => ({
   useLlmProfiles: () => ({
     profiles: mocks.profiles,
+    revision: mocks.revision,
+    refreshProfiles: vi.fn(async () => {}),
     saveProfile: mocks.save,
     deleteProfile: mocks.delete,
     toggleProfileEnabled: vi.fn(async () => {}),
@@ -42,6 +49,7 @@ function editor() {
 }
 beforeEach(() => {
   vi.useFakeTimers();
+  mocks.revision = ref("revision-1");
   mocks.save.mockReset();
   mocks.delete.mockReset();
   mocks.delete.mockImplementation(async (id: string) => {
@@ -65,6 +73,9 @@ beforeEach(() => {
       (item: LlmProfile) => item.id === profile.id
     );
     mocks.profiles.value[index] = JSON.parse(JSON.stringify(profile));
+    mocks.revision.value =
+      "revision-" + (Number(mocks.revision.value.split("-")[1]) + 1);
+    return { value: profile, revision: mocks.revision.value };
   });
 });
 afterEach(() => {
@@ -118,4 +129,33 @@ describe("profile autosave behavior", () => {
     await vi.advanceTimersByTimeAsync(5000);
     expect(mocks.save).toHaveBeenCalledOnce();
   });
+});
+
+it("keeps the selected draft if deleting its confirmed channel fails", async () => {
+  const value = editor();
+  value.selectProfile("fixture");
+  value.editForm.value.name = "Preserved draft";
+  mocks.delete.mockRejectedValueOnce(new Error("disk full"));
+  await value.handleDelete();
+  expect(value.editForm.value.name).toBe("Preserved draft");
+  expect(value.selectedProfileId.value).toBe("fixture");
+  expect(value.isDirty.value).toBe(true);
+});
+
+it("discards an unsaved new channel when refresh confirms an empty collection", async () => {
+  mocks.profiles.value = [];
+  mocks.save.mockRejectedValue(new Error("RUNTIME_STOPPED"));
+  const value = editor();
+  value.createNewProfile();
+  await nextTick();
+  await value.saveCurrentProfile();
+  expect(value.selectedProfileId.value).toBe("fixture-new");
+  await value.refreshCurrentProfile();
+  expect(value.selectedProfileId.value).toBeNull();
+  expect(value.selectedProfile.value).toBeNull();
+  expect(value.editForm.value.id).toBe("");
+  expect(value.saveError.value).toBeNull();
+  mocks.save.mockClear();
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(mocks.save).not.toHaveBeenCalled();
 });

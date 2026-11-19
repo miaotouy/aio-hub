@@ -397,17 +397,17 @@ sequenceDiagram
 
 ## 10. Agent 资源安全与取消生命周期
 
-目录搜索的请求、事件和取消命令都使用同一个 `searchId`。Rust 后端按 `searchId` 保存取消 token，并且只允许一个活动搜索；取消请求不会重置或影响其他搜索。活动槽位直到 walker 完成并 `join` 后才释放，因此 UI 发起下一次搜索前会等待旧搜索真正退出。
+目录搜索的请求、事件和取消命令都使用同一个 `searchId`。Tauri 与 Electron 宿主统一按到达顺序排队，每次执行一个搜索；Agent、UI 与替换预搜索共享队列。排队和执行中的请求各自持有取消状态，排队取消立即结束该请求，活动槽位直到 walker 完成并 `join` 后才释放。Tauri 通过异步信号量等待，在 blocking worker 执行扫描；Electron 在宿主维护 FIFO 队列，窗口释放和应用退出同时清理所属排队请求。扫描时限从实际执行开始计算。
 
 后端固定使用 4 个 walker worker，并对每次搜索施加组合预算：默认最多扫描 50,000 个文件、读取 2 GiB、运行 30 秒；Agent 默认还使用 5 层深度、隐藏目录排除。文件数和读取字节数受后端硬上限约束，`maxResults` 只限制返回匹配数，不替代扫描预算。UI 可以显式保留无限深度和包含隐藏目录，但仍受后端 worker、活动搜索数、文件数、字节数和 deadline 保护。
 
-`SearchSummary` 会返回 `stopReason`（`completed`、`matchLimit`、`fileLimit`、`deadline`、`cancelled` 或 `busy`）、`truncated`、`filesScanned` 和 `bytesRead`。Agent 搜索会在文本结果中明确标记截断；批量替换的预搜索只要不是完整 `completed` 就拒绝写盘，避免对不完整影响范围执行部分替换。
+`SearchSummary` 会返回 `stopReason`（`completed`、`matchLimit`、`fileLimit`、`deadline`、`cancelled` 或 `busy`）、`truncated`、`filesScanned` 和 `bytesRead`。`busy` 仅兼容旧宿主，动作层将其作为执行失败返回。Agent 搜索会在文本结果中明确标记截断，提前结束且结果为空时仅说明尚未收集到匹配；批量替换的预搜索只要不是完整 `completed` 就拒绝写盘，避免对不完整影响范围执行部分替换。
 
 Tool Calling 和 VCP 节点把 `AbortSignal` 放入 `ToolContext`。本地 Tool Calling 超时时先 abort，再返回 timeout；VCP 节点的 115 秒兜底和 WebSocket 断开也会 abort 所属在途调用。VCP `register_tools` 可声明 `capabilities.cancelTool`；服务端只在目标连接仍为 OPEN 且节点声明能力时 best-effort 发送 `cancel_tool`，旧节点仍由 AIO 本地 deadline 独立止损。
 
 ## 11. Electron 运行与收尾
 
-- 全应用同时持有一个活动搜索，保留 4 个 walker worker、文件数/读取字节/时限预算及原有 `busy` 汇总。同一窗口的新 UI 搜索先取消并等待旧搜索结束；取消同时校验窗口归属和 `searchId`。
+- 全应用同时持有一个活动搜索，后续请求按到达顺序排队，保留 4 个 walker worker、文件数/读取字节/时限预算。同一窗口的新 UI 搜索先取消并等待旧搜索结束；取消同时校验窗口归属和 `searchId`。
 - 每次搜索创建一次性 `DirSearchRuntime`，在 blocking worker 中执行共享引擎。原引擎的 500 项结果通道继续提供背压；N-API 到主进程另使用最多 8 条事件的有界队列，约每 25 ms 排空，正常结束保留全部尾批次。
 - Electron 的 invoke 回复与事件使用独立投递队列。目录搜索调用复用已有 Channel 结束标记，等待此前事件投递后才返回，前端和 Agent 动作层可安全收集末批结果并解绑监听。
 - 文档导航、刷新、渲染进程退出和关窗静默取消所属扫描；工具卸载也显式取消活动搜索。取消发生在监听初始化期间时，跳过后续原生启动。

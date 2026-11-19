@@ -1,6 +1,6 @@
 <template>
   <el-dialog
-    :model-value="modelValue"
+    v-model="pageVisible"
     title="新建标签"
     width="480px"
     :lock-scroll="false"
@@ -8,7 +8,6 @@
     :close-on-press-escape="!isSubmitting"
     :show-close="!isSubmitting"
     :before-close="handleClose"
-    @update:model-value="emit('update:modelValue', $event)"
     @opened="focusName"
   >
     <p class="tag-target">
@@ -108,6 +107,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { computed, onMounted, ref } from "vue";
 import type { InputInstance } from "element-plus";
 import { invoke } from "@/platform/native/core";
@@ -122,6 +122,13 @@ const props = defineProps<{
   targetHash?: string;
 }>();
 const emit = defineEmits<{ (e: "update:modelValue", value: boolean): void }>();
+const { visible: pageVisible } = usePageOverlay(
+  computed({
+    get: () => props.modelValue,
+    set: (value: boolean) => emit("update:modelValue", value),
+  })
+);
+
 // 固定本次操作的仓库和提交，切换工作区后仍保持创建与推送目标一致。
 const repoPath = props.repoPath;
 const targetHash = props.targetHash;
@@ -257,4 +264,3 @@ async function handleSubmit() {
   line-height: 1.5;
 }
 </style>
-

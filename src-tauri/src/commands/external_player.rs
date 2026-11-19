@@ -378,6 +378,7 @@ pub async fn create_danmaku_overlay_window(
             .skip_taskbar(true)
             .always_on_top(false) // 初始不强制置顶，由同步逻辑动态控制
             .visible(false),
+        app.config(),
     )
     .build()
     .map_err(|e| e.to_string())?;

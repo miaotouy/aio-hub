@@ -33,6 +33,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     messageToolbar: createDefaultMessageToolbarLayout(),
     isStreaming: true, // 默认开启流式输出
     splitVcpResponses: false,
+    mergeVcpHistory: true,
     showTimestamp: false,
     showTokenCount: true,
     showTokenCountForBlocks: true,

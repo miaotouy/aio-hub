@@ -18,7 +18,9 @@ import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { captureBuildLog } from "./build-log";
+import { assertProcessSucceeded } from "./process-exit";
 import { prepareDevControl } from "./dev-control/launch";
+import { prepareLinuxDesktop } from "./dev-control/linux-environment";
 import { INSTANCE_ID_PATTERN } from "./dev-control/protocol";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mode = process.argv[2] ?? "dev";
@@ -64,6 +66,7 @@ const port = Number(
 );
 // Child processes opt in only through this launcher invocation.
 process.env.AIO_DEV_CONTROL = agent ? "1" : "0";
+if (agent) prepareLinuxDesktop();
 if (!Number.isInteger(port) || port < 1024 || port > 65534)
   throw new Error("开发端口需在 1024–65534 之间");
 const output = path.join(
@@ -233,8 +236,8 @@ process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
 async function run(command: string[], extra: Record<string, string> = {}) {
   const child = spawn(command, extra);
-  const code = await child.exited;
-  if (code) throw new Error(command.join(" ") + "退出码 " + code);
+  await child.exited;
+  assertProcessSucceeded(child, command.join(" "));
 }
 try {
   if (agent) {
@@ -367,8 +370,7 @@ try {
         }),
       ]);
     else await appProcess.exited;
-    if (appProcess.exitCode && !stopping)
-      throw new Error("Electron 退出码 " + appProcess.exitCode);
+    if (!stopping) assertProcessSucceeded(appProcess, "Electron");
   }
 } finally {
   stop();

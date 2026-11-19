@@ -145,6 +145,7 @@ export function useChatExecutor() {
     assistantNode.metadata = {
       ...assistantNode.metadata,
       requestStartTime: Date.now(),
+      waitingPhase: "preparing",
       isContinuation: isContinuation || undefined,
       profileName: profile?.name,
       providerType: profile?.type,

@@ -15,6 +15,15 @@ describe("resolveProbePlan", () => {
     expect(plan.stream).toBe(true);
   });
 
+  it("leaves room for reasoning before the visible chat reply", () => {
+    const plain = resolveProbePlan({ id: "sample" }).chat!;
+    const reasoning = resolveProbePlan({
+      id: "sample",
+      capabilities: { thinking: true },
+    }).chat!;
+    expect(reasoning.maxTokens).toBeGreaterThan(plain.maxTokens);
+  });
+
   it("does not infer capability from the model id", () => {
     expect(resolveProbePlan({ id: "my-embedding-model" }).capability).toBe(
       "chat"

@@ -463,7 +463,7 @@ async fn create_preview_window_internal(
         builder = builder.transparent(true);
     }
 
-    let window = crate::commands::dev_control::configure_webview(builder)
+    let window = crate::commands::dev_control::configure_webview(builder, app.config())
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -765,7 +765,7 @@ pub async fn create_tool_window(app: AppHandle, config: WindowConfig) -> Result<
         builder = builder.transparent(true);
     }
 
-    let _window = crate::commands::dev_control::configure_webview(builder)
+    let _window = crate::commands::dev_control::configure_webview(builder, app.config())
         .build()
         .map_err(|e| e.to_string())?;
 

@@ -18,7 +18,7 @@
   <Teleport to="body" :disabled="!props.appendToBody">
     <div
       v-if="props.destroyOnClose ? props.modelValue : hasOpened"
-      v-show="props.modelValue"
+      v-show="isVisible"
       class="base-dialog-backdrop"
       :style="backdropStyles"
       :class="{
@@ -117,6 +117,7 @@ import {
   computed,
   nextTick,
 } from "vue";
+import { usePageActivity } from "@/composables/usePageActivity";
 import { useOverlayFocus } from "@/composables/useOverlayFocus";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import { useOverlayZIndex } from "@/composables/useDialogZIndex";
@@ -165,8 +166,11 @@ const emit = defineEmits<{
   (e: "open"): void;
 }>();
 
+const isPageActive = usePageActivity();
+// 页面缓存保留编辑内容；顶层浮层随所属页面暂停显示与交互。
+const isVisible = computed(() => props.modelValue && isPageActive.value);
 const dialogRef = ref<HTMLElement | null>(null);
-const { isTopmost } = useOverlayFocus(dialogRef, () => props.modelValue);
+const { isTopmost } = useOverlayFocus(dialogRef, () => isVisible.value);
 
 // 记录是否已经打开过
 const hasOpened = ref(false);
@@ -184,7 +188,7 @@ const isGlassEffectActive = computed(
 
 const showContentTransition = ref(false);
 const { zIndex: dynamicZIndex } = useOverlayZIndex(
-  () => props.modelValue,
+  () => isVisible.value,
   () => props.zIndex
 );
 
@@ -294,7 +298,7 @@ async function handleClose() {
 
 const handleKeyDown = (event: KeyboardEvent) => {
   if (
-    props.modelValue &&
+    isVisible.value &&
     event.key === "Escape" &&
     !event.defaultPrevented &&
     props.showCloseButton &&

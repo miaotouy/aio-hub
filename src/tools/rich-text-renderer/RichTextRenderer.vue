@@ -562,14 +562,25 @@ const prepareStreamBufferForRender = (rawText: string): string =>
 let staticContentInitialized = false;
 watch(
   () =>
-    displayActive.value || staticContentInitialized
-      ? processedContent.value
-      : null,
-  (newContent) => {
-    if (newContent === null) return;
+    [
+      displayActive.value || staticContentInitialized
+        ? processedContent.value
+        : null,
+      props.streamSource,
+    ] as const,
+  ([newContent, source]) => {
+    if (newContent === null || source) return;
     if (!displayActive.value) viewState.clear();
-    if (props.streamSource) return;
     staticContentInitialized = true;
+
+    // The final snapshot includes the smoothing tail; detach before replacing its buffer.
+    unsubscribe?.();
+    unsubscribe = null;
+    unsubscribeComplete?.();
+    unsubscribeComplete = null;
+    streamController?.stop();
+    streamController = null;
+    internalIsStreaming.value = false;
 
     if (typeof newContent !== "string" || !newContent) {
       // 清空

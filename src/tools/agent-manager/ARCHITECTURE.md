@@ -92,7 +92,7 @@ AgentManager.vue            主页面：列表、搜索、分类过滤、一键�
 1. **预检** `preflightImportAgents` / `preflightParsedAgentImportBundle`：解析输入并产出 `AgentImportPreflightResult`——显示名冲突自动编号、模型匹配（不在当前 Profile 的模型列入 `unmatchedModels`）、世界书查重、来源元信息与模型推荐。
 2. **提交** `confirmImportAgents` → `commitImportAgents`：对每个智能体执行 `sanitizeImportedAgent`（默认字段强补全 + `migrateAgent`），写入资产文件，导入/覆盖世界书，最终经 `createAgent(customId?)` 建实体。
 
-普通导入和 `AgentUpgradeDialog` 统一调用 `restoreImportedAgentAssets`：头像恢复到智能体根目录，普通资源与缩略图保留 `assets/` 层级，配置引用随实际写入路径更新。写入失败会中止该智能体的配置更新并报告失败；新建导入在资产写入成功后创建实体。升级合并继续保留当前名称、头像和模型绑定。
+普通导入和 `AgentUpgradeDialog` 统一调用 `restoreImportedAgentAssets`：头像恢复到智能体根目录，普通资源与缩略图保留 `assets/` 层级，配置引用随实际写入路径更新。写入失败会中止该智能体的配置更新并报告失败；新建导入在资产写入成功后创建实体。升级合并继续保留当前名称、头像和模型绑定。覆盖导入通过 DropZone 接收 File 字节并复用拖放去重；普通智能体的空模型字段沿用当前绑定，继承调用者模型的子智能体保留显式空绑定。旧工具配置按字段补齐默认值，显式开关与权限选择保持原值；工具编辑器与聊天执行共用默认最大迭代次数。
 
 支持的输入来源（`source: "aio" | "silly-tavern" | "vcp-chat"`）：
 

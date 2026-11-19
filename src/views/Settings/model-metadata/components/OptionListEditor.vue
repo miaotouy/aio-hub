@@ -75,7 +75,7 @@
     <div v-else class="empty-options">暂无选项</div>
 
     <el-dialog
-      v-model="batchImportVisible"
+      v-model="pageBatchImportVisible"
       title="批量导入选项"
       width="520px"
       append-to-body
@@ -104,6 +104,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { computed, ref } from "vue";
 import {
   ArrowDown,
@@ -151,6 +152,7 @@ const emit = defineEmits<{
 
 const options = computed(() => props.modelValue || []);
 const batchImportVisible = ref(false);
+const { visible: pageBatchImportVisible } = usePageOverlay(batchImportVisible);
 const batchImportText = ref("");
 
 const presetGroups: PresetGroup[] = [

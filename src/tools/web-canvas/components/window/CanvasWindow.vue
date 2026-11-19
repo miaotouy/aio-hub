@@ -21,12 +21,16 @@
       v-model:pinned="titleBarPinned"
       :title="activeCanvas?.metadata.name || 'Canvas Stage'"
       :show-status-bar="showStatusBar"
-      @refresh="forceRefresh"
+      @refresh="refreshCanvas"
       @toggle-status-bar="showStatusBar = !showStatusBar"
       @open-vscode="openInVSCode"
       @close="closeWindow"
     />
 
+    <p v-if="canvasLoadError" role="alert">
+      {{ canvasLoadError }}
+      <el-button link @click="refreshCanvas">重试</el-button>
+    </p>
     <!-- 主预览区域 -->
     <div class="preview-container">
       <CanvasPreviewPane
@@ -117,7 +121,6 @@ const {
   isRefreshing,
   consoleMessages,
   refreshPreview,
-  forceRefresh,
 } = useCanvasPreview({
   canvasId: () => activeCanvasId.value,
   basePath: () => canvasBasePath.value,
@@ -142,26 +145,44 @@ watch(titleBarPinned, (val) => {
   localStorage.setItem("canvas-titlebar-pinned", String(val));
 });
 
-// 监听 ID 变化，加载元数据
+const canvasLoadError = ref("");
+let contextLoadGeneration = 0;
+
+async function loadCanvasContext(id: string | null) {
+  const generation = ++contextLoadGeneration;
+  if (!id) return;
+  try {
+    const [metadata, basePath] = await Promise.all([
+      storage.readCanvasMetadata(id),
+      storage.getCanvasBasePath(id),
+    ]);
+    if (activeCanvasId.value !== id || generation !== contextLoadGeneration)
+      return;
+    if (!metadata) throw new Error("画布信息不可用，请重试");
+    activeCanvas.value = { metadata };
+    canvasBasePath.value = basePath;
+    canvasLoadError.value = "";
+    refreshPreview();
+  } catch (error) {
+    if (activeCanvasId.value !== id || generation !== contextLoadGeneration)
+      return;
+    canvasLoadError.value =
+      error instanceof Error ? error.message : "画布信息读取失败，请重试";
+    logger.error("画布信息加载失败", error);
+  }
+}
+
+async function refreshCanvas() {
+  await loadCanvasContext(activeCanvasId.value);
+}
+
 watch(
   () => activeCanvasId.value,
-  async (newId) => {
-    if (newId) {
-      const [metadata, basePath] = await Promise.all([
-        storage.readCanvasMetadata(newId),
-        storage.getCanvasBasePath(newId),
-      ]);
-
-      if (metadata) {
-        activeCanvas.value = { metadata };
-      }
-      canvasBasePath.value = basePath;
-      logger.info("Canvas 路径已加载", { basePath });
-      refreshPreview();
-    } else {
-      activeCanvas.value = null;
-      canvasBasePath.value = null;
-    }
+  (id) => {
+    activeCanvas.value = null;
+    canvasBasePath.value = null;
+    canvasLoadError.value = "";
+    void loadCanvasContext(id);
   },
   { immediate: true }
 );

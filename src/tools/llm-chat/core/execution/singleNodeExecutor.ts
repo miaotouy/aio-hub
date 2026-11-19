@@ -33,7 +33,11 @@ import type {
   CreateNodeConfig,
 } from "./types";
 import { normalizeContinuationSettings } from "../../../../llm-apis/continuation";
-import { VcpStreamSegmenter } from "../tool-calling/vcp-stream-segmenter";
+import {
+  VcpStreamSegmenter,
+  type VcpResponseSegment,
+} from "../tool-calling/vcp-stream-segmenter";
+import { getMessagePerformanceMetadata } from "../../utils/messagePerformance";
 import { resolveMessageDisplayStatus } from "../../utils/messageStatus";
 import {
   DEFAULT_RETRY_STATUS_CODES,
@@ -337,6 +341,15 @@ export async function executeSingleNode(
     };
   });
 
+  // 上下文管道、转写和压缩完成后，才进入等待外部返回的阶段。
+  assistantNode.metadata = {
+    ...assistantNode.metadata,
+    waitingPhase: "requesting",
+  };
+  if (session.nodes?.[assistantNode.id]) {
+    session.nodes[assistantNode.id].metadata = assistantNode.metadata;
+  }
+
   const maxRetries = ports.getSettings().requestSettings.maxRetries;
   const retryInterval = ports.getSettings().requestSettings.retryInterval;
   const retryMode = ports.getSettings().requestSettings.retryMode;
@@ -352,6 +365,86 @@ export async function executeSingleNode(
   let hasResponseChunks = false;
   let activeStreamNode = session.nodes[assistantNode.id] ?? assistantNode;
   let nextAssistantStartTime: number | undefined;
+  const segmentUsageUpdates = new Map<
+    number,
+    {
+      content: string;
+      reasoningContent: string;
+      usage: VcpResponseSegment["usage"];
+      promise: Promise<void>;
+    }
+  >();
+
+  // Usage may follow the finish chunk. Publish estimates independently of the
+  // HTTP lifetime, and let newer provider usage supersede pending calculations.
+  const updateSegmentUsage = (
+    segment: VcpResponseSegment,
+    node: ChatMessageNode
+  ) => {
+    const previous = segmentUsageUpdates.get(segment.index);
+    if (
+      previous &&
+      previous.content === segment.content &&
+      previous.reasoningContent === segment.reasoningContent &&
+      previous.usage === segment.usage
+    )
+      return;
+    const update = {
+      content: segment.content,
+      reasoningContent: segment.reasoningContent,
+      usage: segment.usage,
+      promise: Promise.resolve(),
+    };
+    segmentUsageUpdates.set(segment.index, update);
+    update.promise = Promise.resolve()
+      .then(async () => {
+        if (segmentUsageUpdates.get(segment.index) !== update) return;
+        const usageResponse = {
+          content: update.content,
+          reasoningContent: update.reasoningContent,
+          usage: update.usage,
+          providerUsage: node.metadata?.providerUsage,
+          estimatedUsage: node.metadata?.estimatedUsage,
+        };
+        const priorMessages = [
+          ...messagesForRequest,
+          ...segmenter!.segments.slice(0, segment.index).map((prior) => ({
+            role: prior.kind === "tool" ? "user" : "assistant",
+            content: prior.content,
+          })),
+        ];
+        await ports.validateAndFixUsage(
+          usageResponse,
+          agentConfig.modelId,
+          priorMessages as any
+        );
+        if (
+          segmentUsageUpdates.get(segment.index) !== update ||
+          session.nodes[node.id] !== node
+        )
+          return;
+        update.usage = segment.usage = usageResponse.usage;
+        node.metadata = {
+          ...node.metadata,
+          usage: usageResponse.usage,
+          providerUsage: usageResponse.providerUsage,
+          estimatedUsage: usageResponse.estimatedUsage,
+          ...getMessagePerformanceMetadata({
+            ...node.metadata,
+            usage: usageResponse.usage,
+          }),
+        };
+      })
+      .catch((error) => logger.warn("分段用量统计更新失败", error));
+  };
+
+  const completeResponseSegment = (
+    segment: VcpResponseSegment,
+    node: ChatMessageNode
+  ) => {
+    ports.completeStreamSegment(session, node.id);
+    if (segment.kind === "assistant") updateSegmentUsage(segment, node);
+  };
 
   const onResponseChunk: NonNullable<LlmRequestOptions["onResponseChunk"]> = (
     chunk
@@ -373,7 +466,10 @@ export async function executeSingleNode(
         node = session.nodes[assistantNode.id] ?? assistantNode;
         node.role = segment.kind;
       } else {
-        ports.completeStreamSegment(session, activeStreamNode.id);
+        completeResponseSegment(
+          segmenter.segments[segment.index - 1],
+          activeStreamNode
+        );
         const original = assistantNode.metadata;
         node = ports.nodes.createNode({
           role: segment.kind,
@@ -389,6 +485,7 @@ export async function executeSingleNode(
             modelIcon: original?.modelIcon,
             providerType: original?.providerType,
             requestParameters: original?.requestParameters,
+            waitingPhase: "requesting",
             ...(segment.kind === "assistant"
               ? {
                   requestStartTime:
@@ -454,7 +551,7 @@ export async function executeSingleNode(
       },
       ...(segment.usage ? { usage: segment.usage } : {}),
       ...(segment.finishReason && !node.metadata?.requestEndTime
-        ? { requestEndTime: Date.now() }
+        ? { requestEndTime: receivedAt }
         : {}),
       ...(segment.toolCalls
         ? {
@@ -473,6 +570,7 @@ export async function executeSingleNode(
       } else {
         node.metadata.requestStartTime ??= receivedAt;
         node.metadata.firstTokenTime ??= receivedAt;
+        node.status = "generating";
         nextAssistantStartTime = undefined;
       }
     }
@@ -480,6 +578,11 @@ export async function executeSingleNode(
       ports.handleStreamUpdate(session, node.id, contentDelta, false);
     if (reasoningDelta)
       ports.handleStreamUpdate(session, node.id, reasoningDelta, true);
+    if (
+      segment.kind === "assistant" &&
+      (segment.finishReason || node.status === "complete")
+    )
+      completeResponseSegment(segment, node);
   };
 
   const snapshotRecorder =
@@ -659,6 +762,10 @@ export async function executeSingleNode(
   try {
     if (response) {
       if (segmenter?.segments.length) {
+        await Promise.all(
+          [...segmentUsageUpdates.values()].map((update) => update.promise)
+        );
+        throwIfCancelled();
         const priorMessages = [...messagesForRequest];
         const lastAssistant = [...segmenter.segments]
           .reverse()
@@ -677,6 +784,8 @@ export async function executeSingleNode(
                   ? response.reasoningArtifacts
                   : undefined,
               usage: segment.usage,
+              providerUsage: node.metadata?.providerUsage,
+              estimatedUsage: node.metadata?.estimatedUsage,
               finishReason: segment.finishReason,
               images: segment === lastAssistant ? response.images : undefined,
               toolCalls: undefined,

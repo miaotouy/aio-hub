@@ -54,7 +54,6 @@ export class DevConnection {
   async description(page: Page): Promise<DevControlDescription | null> {
     if (page.isClosed()) return null;
     try {
-      if (new URL(page.url()).pathname === "/background-js.html") return null;
       if (!matchesFrontendUrl(page.url(), this.instance.frontendUrl))
         return null;
       const description = await withinTimeout(

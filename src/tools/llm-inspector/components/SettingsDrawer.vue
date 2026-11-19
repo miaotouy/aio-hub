@@ -16,7 +16,7 @@
 
 <template>
   <el-drawer
-    v-model="drawerVisible"
+    v-model="pageDrawerVisible"
     title="检查器设置"
     direction="rtl"
     size="480px"
@@ -188,6 +188,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { ref, computed } from "vue";
 import HeaderOverrideDialog from "./HeaderOverrideDialog.vue";
 import type { InspectorConfig, HeaderOverrideRule } from "../types";
@@ -229,6 +230,7 @@ const drawerVisible = computed({
   get: () => props.visible,
   set: (v) => emit("update:visible", v),
 });
+const { visible: pageDrawerVisible } = usePageOverlay(drawerVisible);
 
 // 头规则弹窗状态
 const showHeaderDialog = ref(false);

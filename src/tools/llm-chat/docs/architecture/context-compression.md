@@ -43,7 +43,8 @@
 - **按用户回合**：每条用户消息开启一个回合，后续助手回复与工具结果归入该回合，直到下一条用户消息。原生工具调用与 VCP 拆分消息使用同一规则，保护区和压缩区均按完整回合选取。旧压缩留下的开头助手／工具片段单独归为一组。
 - **保护区**：通过 `protectRecentCount`（默认 10）保留最近 N 个计数单位。
 - **压缩量**：通过 `compressCount`（默认 20）控制单次压缩的最大单位数，从最早的可见历史开始执行。范围排除 system 消息、摘要节点与已被摘要覆盖的节点。
-- **数量触发**：用户回合模式下，`countThreshold` 与 `minHistoryCount` 同样按回合计数；Token 阈值保持原有计算。旧消息条数模式保留原有有效路径节点数统计。
+- **数量触发**：用户回合模式下，`countThreshold` 与 `minHistoryCount` 同样按回合计数。旧消息条数模式保留原有有效路径节点数统计。
+- **Token 触发**：使用上下文统计时，将当前 Token 数与 Token 限制器截掉的 Token 数相加，按截断前的上下文判断阈值。VCP 合并历史也遵循该规则，整轮回复因预算被截掉后仍可触发摘要；压缩范围继续从会话原始节点选取。
 - **切换记忆**：两种方式通过 `countsByUnit` 分别保存保护数量、单次压缩数量、最小历史数量和数量阈值。首次选择某种方式时使用默认数量，后续切回恢复该方式的设置；当前方式的数量继续存储在原有平铺字段中。
 - **可逆性**：虽然压缩节点在构建 LLM 上下文时会替代原始消息，但原始消息节点并未被删除，用户可以随时展开查看或回滚。
 
@@ -74,11 +75,13 @@
 - `compressedNodeIds: string[]`：记录被此节点“遮罩”隐藏的消息 ID 列表。
 - `originalTokenCount` / `originalMessageCount`：记录压缩前的统计数据。
 
+摘要正文保持原样存储，供展示、编辑与增量摘要使用。会话加载器在 HTML 转换后为发送上下文中的摘要添加 `[上下文摘要]` 标识与成对 Markdown 围栏；围栏长度超过摘要正文中的最长连续反引号，使角色转换、同角色合并后仍保留摘要与相邻消息的边界。此处理同时适用于已有摘要节点。
+
 ### 3.2. UI 表现
 
 - **消息列表**：[`MessageList.vue`](src/tools/llm-chat/components/message/MessageList.vue) 会计算当前路径上所有被隐藏的节点 ID。
 - **遮罩效果**：[`ChatMessage.vue`](src/tools/llm-chat/components/message/ChatMessage.vue) 接收 `isCompressed` 属性，被压缩的消息会呈现半透明状态（`opacity: 0.5`）。
-- **摘要渲染**：使用专门的 [`CompressionMessage.vue`](src/tools/llm-chat/components/message/CompressionMessage.vue) 组件展示摘要内容及压缩统计，默认折叠，按需展开或编辑。
+- **摘要渲染**：使用专门的 [`CompressionMessage.vue`](src/tools/llm-chat/components/message/CompressionMessage.vue) 组件展示摘要内容及压缩统计，默认折叠，按需展开或编辑。左侧数据库图标与标题用于展开/折叠摘要，只读会话也可使用；右侧电源按钮独立控制摘要是否参与上下文构建。
 
 ## 4. 配置管理
 

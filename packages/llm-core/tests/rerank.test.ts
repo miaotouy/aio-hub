@@ -61,3 +61,15 @@ describe("generic rerank provider", () => {
 async function* bytes(value: string) {
   yield new TextEncoder().encode(value);
 }
+
+it.each([
+  "https://cohere.invalid",
+  "https://cohere.invalid/v1",
+  "https://cohere.invalid/v2",
+])("uses Cohere v2 rerank for base URL %s", (baseUrl) => {
+  const request = buildRerankRequest(
+    { provider: "cohere", baseUrl },
+    { model: "ranker", query: "q", documents: ["d"] }
+  );
+  expect(request.url).toBe("https://cohere.invalid/v2/rerank");
+});

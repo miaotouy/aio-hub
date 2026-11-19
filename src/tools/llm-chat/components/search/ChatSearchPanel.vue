@@ -27,6 +27,7 @@ import {
 } from "lucide-vue-next";
 import type { ChatMessageNode } from "../../types";
 import { format } from "date-fns";
+import { escapeRegExp } from "lodash-es";
 
 interface Props {
   messages: ChatMessageNode[];
@@ -181,17 +182,10 @@ const formatTime = (ts: string) => {
   }
 };
 
-// 高亮关键词
+// 捕获组保留匹配文本，奇数位置用于高亮。
 const highlightText = (text: string, query: string) => {
-  if (!query) return text;
-  const parts = text.split(new RegExp(`(${query})`, "gi"));
-  return parts
-    .map((part) =>
-      part.toLowerCase() === query.toLowerCase()
-        ? `<mark class="highlight">${part}</mark>`
-        : part
-    )
-    .join("");
+  if (!query) return [text];
+  return text.split(new RegExp(`(${escapeRegExp(query)})`, "gi"));
 };
 </script>
 
@@ -283,10 +277,20 @@ const highlightText = (text: string, query: string) => {
                   {{ formatTime(result.timestamp) }}
                 </span>
               </div>
-              <div
-                class="result-snippet"
-                v-html="highlightText(result.snippet, searchQuery)"
-              ></div>
+              <div class="result-snippet">
+                <template
+                  v-for="(part, partIndex) in highlightText(
+                    result.snippet,
+                    searchQuery
+                  )"
+                  :key="partIndex"
+                >
+                  <mark v-if="partIndex % 2 === 1" class="highlight">{{
+                    part
+                  }}</mark>
+                  <template v-else>{{ part }}</template>
+                </template>
+              </div>
               <ChevronRight class="arrow-icon" :size="16" />
             </div>
           </div>
@@ -537,7 +541,7 @@ const highlightText = (text: string, query: string) => {
   word-break: break-all;
 }
 
-:deep(.highlight) {
+.highlight {
   background: var(--el-color-warning-light-7);
   color: var(--el-color-warning);
   font-weight: bold;

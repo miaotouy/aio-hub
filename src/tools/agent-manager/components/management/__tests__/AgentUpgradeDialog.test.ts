@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   open: vi.fn(),
   success: vi.fn(),
+  warning: vi.fn(),
   error: vi.fn(),
 }));
 vi.mock("../../../stores/agentStore", () => ({
@@ -29,13 +30,21 @@ vi.mock("@/platform/native/fs", () => ({
   readDir: vi.fn(),
 }));
 vi.mock("@/utils/customMessage", () => ({
-  customMessage: { success: mocks.success },
+  customMessage: { success: mocks.success, warning: mocks.warning },
 }));
 vi.mock("@/utils/errorHandler", () => ({
   createModuleErrorHandler: () => ({ error: mocks.error }),
 }));
 vi.mock("@/tools/st-worldbook-manager/services/worldbookImportService", () => ({
   normalizeWorldbook: (value: unknown) => value,
+}));
+
+vi.mock("@/platform", () => ({ showOpenDialog: mocks.open }));
+vi.mock("@/platform/native/events", () => ({
+  listen: async () => () => undefined,
+}));
+vi.mock("@/platform/native/webview", () => ({
+  getCurrentWebview: () => ({ onDragDropEvent: async () => () => undefined }),
 }));
 
 const stubs = {
@@ -171,3 +180,61 @@ describe("agent package upgrades", () => {
     }
   });
 });
+
+it("imports a pathless dropped YAML file through the real DropZone without a path warning", async () => {
+  const wrapper = mount(AgentUpgradeDialog, {
+    props: { visible: true, agent: current as any },
+    global: {
+      stubs: { ...stubs, DropZone: false },
+      directives: { loading: {} },
+    },
+  });
+  try {
+    await flushPromises();
+    const content =
+      "type: AIO_Agent_Export\nagents:\n  - name: Dropped\n    modelId: ''\n";
+    const file = new File([content], "test.agent.yaml", { type: "text/yaml" });
+    // jsdom File lacks text(); the native renderer supplies it.
+    Object.defineProperty(file, "text", { value: async () => content });
+    const event = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", {
+      value: { files: [file], getData: () => "" },
+    });
+    wrapper.get(".drop-zone").element.dispatchEvent(event);
+    await flushPromises();
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    await flushPromises();
+    expect(wrapper.get("textarea").element.value).toBe(content);
+    expect(mocks.warning).not.toHaveBeenCalled();
+    await wrapper.find("footer button:last-child").trigger("click");
+    await flushPromises();
+    expect(mocks.updateAgent).toHaveBeenCalledOnce();
+    expect(mocks.updateAgent.mock.calls[0][0]).toBe(current.id);
+  } finally {
+    wrapper.unmount();
+  }
+});
+
+it.each([
+  ["", "", "local-profile", "local-model"],
+  ["imported-profile", "imported-model", "imported-profile", "imported-model"],
+])(
+  "preserves blank bindings and applies explicit overwrite bindings (%s)",
+  async (profileId, modelId, expectedProfile, expectedModel) => {
+    const wrapper = await openPackage("overwrite");
+    try {
+      await wrapper
+        .get("textarea")
+        .setValue(JSON.stringify({ name: "Incoming", profileId, modelId }));
+      await flushPromises();
+      await wrapper.find("footer button:last-child").trigger("click");
+      await flushPromises();
+      expect(mocks.updateAgent.mock.lastCall![1]).toMatchObject({
+        profileId: expectedProfile,
+        modelId: expectedModel,
+      });
+    } finally {
+      wrapper.unmount();
+    }
+  }
+);

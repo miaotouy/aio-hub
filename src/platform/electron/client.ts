@@ -95,10 +95,7 @@ export async function request<T = unknown>(
   }
 }
 export function unsupported(capability: string): never {
-  throw Object.assign(
-    new Error(
-      "Electron 迁移中：" + capability + "尚未接入，请使用 Tauri 入口完成该操作"
-    ),
-    { code: "CAPABILITY_UNAVAILABLE" }
-  );
+  throw Object.assign(new Error("当前 Electron 宿主尚未接入" + capability), {
+    code: "CAPABILITY_UNAVAILABLE",
+  });
 }

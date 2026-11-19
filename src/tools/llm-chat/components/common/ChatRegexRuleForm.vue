@@ -254,6 +254,7 @@ import type { ChatRegexRule } from "../../types/chatRegex";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import {
   executeReplacementScript,
+  getRegexReplacementContext,
   parseRegexString,
 } from "../../utils/chatRegexUtils";
 
@@ -585,37 +586,16 @@ const highlightedOutput = computed(() => {
       // 第一遍：收集所有匹配和替换信息
       let tempRegex = new RegExp(parsed.pattern, finalFlags);
       input.replace(tempRegex, (match, ...args) => {
-        const offset = args[args.length - 2] as number;
+        const context = getRegexReplacementContext(match, args);
+        const offset = context.index;
         let actualReplacement = "";
         if (replacementType === "script") {
-          // 调用统一的脚本执行逻辑
-          const source = args[args.length - 1] as string;
-          const groups = args.slice(0, -2).filter((g) => typeof g === "string");
-
           try {
-            actualReplacement = executeReplacementScript(scriptContent!, {
-              match,
-              groups,
-              index: offset,
-              source,
-            });
-            // 如果执行出错回退了原始匹配，且脚本内容不为空，说明可能有静默错误
-            // 在测试界面我们希望看到错误，所以这里做一个简单的检查
-            if (actualReplacement === match && scriptContent?.trim()) {
-              // 再次执行以捕获错误（由于 cache 存在，开销较小）
-              try {
-                const fn = new Function(
-                  "match",
-                  "groups",
-                  "index",
-                  "source",
-                  scriptContent!
-                );
-                fn(match, groups, offset, source);
-              } catch (e) {
-                actualReplacement = `[Error: ${e instanceof Error ? e.message : String(e)}]`;
-              }
-            }
+            actualReplacement = executeReplacementScript(
+              scriptContent!,
+              context,
+              { throwOnError: true }
+            );
           } catch (e) {
             actualReplacement = `[Error: ${e instanceof Error ? e.message : String(e)}]`;
           }
@@ -667,8 +647,7 @@ const highlightedOutput = computed(() => {
       // 使用 replace 的回调来遍历匹配项
       // 注意：如果 flags 没有 'g'，replace 只会处理第一个匹配
       input.replace(regex, (match, ...args) => {
-        // args 的倒数第二个参数是 offset
-        const offset = args[args.length - 2];
+        const { index: offset } = getRegexReplacementContext(match, args);
 
         // 添加匹配项之前的文本（转义）
         if (offset > lastIndex) {

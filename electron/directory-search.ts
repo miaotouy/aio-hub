@@ -38,7 +38,10 @@ interface Task {
   cancelled: boolean;
   silent: boolean;
   runtime?: Runtime;
-  promise: Promise<unknown>;
+  configuration: string;
+  promise: Promise<SearchSummary>;
+  resolve: (result: SearchSummary) => void;
+  reject: (error: unknown) => void;
 }
 const operations = new Set([
   "dir_replace",
@@ -63,10 +66,7 @@ function identity(value: unknown): string {
     throw new Error("搜索身份无效");
   return value;
 }
-function summary(
-  searchId: string,
-  reason: "busy" | "cancelled"
-): SearchSummary {
+function cancelledSummary(searchId: string): SearchSummary {
   return {
     searchId,
     filesScanned: 0,
@@ -74,14 +74,16 @@ function summary(
     totalMatches: 0,
     bytesRead: 0,
     durationMs: 0,
-    stopReason: reason,
+    stopReason: "cancelled",
     truncated: true,
-    cancelled: reason === "cancelled",
+    cancelled: true,
   };
 }
 /** Retains the directory tool's app-wide one-search / four-worker resource contract. */
 export class DirectorySearch {
   private scan?: Task;
+  private readonly scans = new Map<string, Task>();
+  private readonly scanQueue: Task[] = [];
   private readonly pending = new Set<Promise<unknown>>();
   private readonly previews = new Set<{ owner: number; disposed: boolean }>();
   private tail: Promise<unknown> = Promise.resolve();
@@ -120,21 +122,29 @@ export class DirectorySearch {
       if (command === "dir_search") {
         const searchId = identity(request.searchId);
         request.searchId = searchId;
-        if (this.scan) return Promise.resolve(summary(searchId, "busy"));
+        if (this.scans.has(searchId)) throw new Error("搜索身份已在使用");
+        // Snapshot accepted arguments so callers cannot change a queued search.
+        const configuration = JSON.stringify(request);
+        let resolve!: Task["resolve"];
+        let reject!: Task["reject"];
+        const promise = new Promise<SearchSummary>((onResolve, onReject) => {
+          resolve = onResolve;
+          reject = onReject;
+        });
         const task: Task = {
           owner,
           searchId,
+          configuration,
           cancelled: false,
           silent: false,
-          promise: Promise.resolve(),
+          promise,
+          resolve,
+          reject,
         };
-        this.scan = task;
-        task.promise = Promise.resolve()
-          .then(() => this.search(task, request))
-          .finally(() => {
-            if (this.scan === task) this.scan = undefined;
-          });
-        return this.track(task.promise);
+        this.scans.set(searchId, task);
+        this.scanQueue.push(task);
+        queueMicrotask(() => this.startNextSearch());
+        return this.track(promise);
       }
       if (!operations.has(command)) throw new Error("不支持的目录搜索操作");
       // Freeze accepted arguments before waiting in the mutation queue.
@@ -164,40 +174,67 @@ export class DirectorySearch {
       return Promise.reject(error);
     }
   }
+  private startNextSearch() {
+    if (this.scan || this.closing) return;
+    const task = this.scanQueue.shift();
+    if (!task) return;
+    this.scan = task;
+    const finish = () => {
+      this.scans.delete(task.searchId);
+      this.scan = undefined;
+      queueMicrotask(() => this.startNextSearch());
+    };
+    void this.search(task).then(
+      (result) => {
+        finish();
+        task.resolve(result);
+      },
+      (error: unknown) => {
+        finish();
+        task.reject(error);
+      }
+    );
+  }
   private abort(task: Task) {
     task.cancelled = true;
-    task.runtime?.cancel();
+    if (this.scan === task) {
+      // Keep the active slot until native work and final event draining finish.
+      task.runtime?.cancel();
+    } else {
+      this.scanQueue.splice(this.scanQueue.indexOf(task), 1);
+      this.scans.delete(task.searchId);
+      task.resolve(cancelledSummary(task.searchId));
+    }
   }
   private async cancel(owner: number, searchId: string): Promise<null> {
-    const task = this.scan;
-    if (task?.owner === owner && task.searchId === searchId) {
+    const task = this.scans.get(searchId);
+    if (task?.owner === owner) {
       this.abort(task);
       await Promise.allSettled([task.promise]);
     }
     return null;
   }
   disposeOwner(owner: number) {
-    if (this.scan?.owner === owner) {
-      this.scan.silent = true;
-      this.abort(this.scan);
+    for (const task of this.scans.values()) {
+      if (task.owner === owner) {
+        task.silent = true;
+        this.abort(task);
+      }
     }
     for (const preview of this.previews)
       if (preview.owner === owner) preview.disposed = true;
   }
   async shutdown(): Promise<void> {
     this.closing = true;
-    if (this.scan) {
-      this.scan.silent = true;
-      this.abort(this.scan);
+    for (const task of this.scans.values()) {
+      task.silent = true;
+      this.abort(task);
     }
     for (const preview of this.previews) preview.disposed = true;
     await Promise.allSettled([...this.pending]);
   }
-  private async search(
-    task: Task,
-    request: Record<string, unknown>
-  ): Promise<SearchSummary> {
-    if (task.cancelled) return summary(task.searchId, "cancelled");
+  private async search(task: Task): Promise<SearchSummary> {
+    if (task.cancelled) return cancelledSummary(task.searchId);
     const runtime = (task.runtime = new (this.getAddon().DirSearchRuntime)());
     let eventError: unknown;
     const drain = () => {
@@ -224,7 +261,7 @@ export class DirectorySearch {
       }
     }, 25);
     try {
-      const json = await runtime.search(JSON.stringify(request));
+      const json = await runtime.search(task.configuration);
       if (eventError) throw eventError;
       drain();
       const result = JSON.parse(json) as SearchSummary;

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { invoke } from "@/platform/native/core";
+import { isElectronRuntime } from "@/platform/core/env";
 import { listen, type UnlistenFn } from "@/platform/native/events";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
@@ -245,7 +246,7 @@ export function useSymlinkMoverLogic() {
       return await errorHandler.wrapAsync(
         async () => {
           const result = await invoke<string>("move_and_link", {
-            operationId,
+            ...(isElectronRuntime() ? { operationId } : {}),
             sourcePaths: options.sourcePaths,
             targetDir: options.targetDir,
             linkType: options.linkType,
@@ -283,7 +284,7 @@ export function useSymlinkMoverLogic() {
       return await errorHandler.wrapAsync(
         async () => {
           const result = await invoke<string>("create_links_only", {
-            operationId,
+            ...(isElectronRuntime() ? { operationId } : {}),
             sourcePaths: options.sourcePaths,
             targetDir: options.targetDir,
             linkType: options.linkType,
@@ -314,7 +315,10 @@ export function useSymlinkMoverLogic() {
 
     const result = await errorHandler.wrapAsync(
       async () => {
-        await invoke("cancel_move_operation", { operationId });
+        await invoke(
+          "cancel_move_operation",
+          isElectronRuntime() ? { operationId } : {}
+        );
         logger.info("取消操作成功");
         return true;
       },

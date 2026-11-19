@@ -35,6 +35,7 @@ export const PROVIDER_EXECUTION_DEFAULTS: Readonly<
     defaultOperation: "chat",
     operationAdapters: {
       embedding: "openai-embeddings",
+      rerank: "jina-rerank",
       image: "openai-image-generation",
     },
   },
@@ -212,7 +213,7 @@ export const PROVIDER_EXECUTION_DEFAULTS: Readonly<
   cohere: {
     defaultAdapterId: "cohere-chat",
     defaultOperation: "chat",
-    operationAdapters: { embedding: "cohere-chat" },
+    operationAdapters: { embedding: "cohere-chat", rerank: "jina-rerank" },
   },
   vertexai: {
     defaultAdapterId: "vertex-google",

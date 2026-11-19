@@ -87,6 +87,8 @@
   - `destroyOnClose` (boolean): 关闭时是否销毁内容。
   - `loading` (boolean): 内容区域显示加载状态。
 - **键盘与焦点**：打开后优先聚焦内容中的 `autofocus` 元素，其余情况聚焦弹窗容器；保留内容主动设置的焦点；Tab 在弹窗内循环，关闭后返回入口。Escape 仅关闭当前聚焦的最上层弹窗，内部控件可先消费该按键。
+- **页面切换**：工作区页面进入缓存时，BaseDialog 暂停显示并释放焦点与浮层层级；返回该页面后恢复原内容。此过程保留打开状态和未保存草稿，不触发关闭确认及 `open` / `close` 事件。DraggablePanel、VideoViewer 遵循相同的页面生命周期；应用外壳中的全局弹窗保持原有显示行为。
+- 直接使用 Element Plus Dialog / Drawer 时，通过 `usePageOverlay(visibleRef)` 返回的 `visible` 绑定 `v-model`，关闭事件中的表单清理通过返回的 `active` 判断页面状态。
 - **Slots**: `default`, `header`, `footer`
 
 - **使用示例** (来自 [`CreateUserProfileDialog.vue`](../../tools/user-profile-manager/components/user-profile/CreateUserProfileDialog.vue)):

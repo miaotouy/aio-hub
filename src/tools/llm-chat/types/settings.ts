@@ -128,6 +128,8 @@ export interface ChatSettings {
     isStreaming: boolean;
     /** 是否将 VCP 上游流式回复按模型生成与工具结果拆分为消息节点 */
     splitVcpResponses: boolean;
+    /** 是否将拆分的 VCP 历史在发送到 VCP 文本渠道时合并回单条 assistant */
+    mergeVcpHistory: boolean;
     /** 是否显示消息时间戳 */
     showTimestamp: boolean;
     /** 是否显示 Token 统计 */

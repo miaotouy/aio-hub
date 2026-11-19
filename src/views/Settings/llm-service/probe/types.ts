@@ -64,3 +64,11 @@ export interface BatchProbeRequest {
     total: number
   ) => void;
 }
+
+export interface KeyBatchProbeRequest {
+  profile: LlmProfile;
+  modelId: string;
+  keys: string[];
+  signal?: AbortSignal;
+  onResult?: (key: string, result: ChannelProbeResult) => void | Promise<void>;
+}

@@ -82,7 +82,7 @@
     </div>
 
     <el-drawer
-      v-model="showJsonViewer"
+      v-model="pageShowJsonViewer"
       title="消息详情"
       direction="rtl"
       size="50%"
@@ -93,6 +93,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageOverlay } from "@/composables/usePageOverlay";
 import { ref, computed, watch } from "vue";
 import { useVcpStore } from "./stores/vcpConnectorStore";
 import { useVcpDistributedNode } from "./composables/useVcpDistributedNode";
@@ -114,6 +115,7 @@ const { closeWindow } = useDetachedManager();
 const activeTab = ref("messages");
 const selectedMessage = ref<VcpMessage | null>(null);
 const showJsonViewer = ref(false);
+const { visible: pageShowJsonViewer } = usePageOverlay(showJsonViewer);
 const isConfigCollapsed = ref(false);
 
 // 启动分布式节点逻辑

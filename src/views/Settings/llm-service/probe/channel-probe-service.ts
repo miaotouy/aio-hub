@@ -30,6 +30,7 @@ import {
 } from "./endpoint-options";
 import type {
   BatchProbeRequest,
+  KeyBatchProbeRequest,
   ChannelProbeRequest,
   ChannelProbeResult,
   ProbeEndpointType,
@@ -280,7 +281,29 @@ export function createChannelProbeService(
     return results;
   }
 
-  return { probe, probeBatch };
+  async function probeKeyBatch(request: KeyBatchProbeRequest) {
+    // Credentials, endpoint and model belong to the whole batch, including delayed work.
+    const profile = cloneProfile(request.profile);
+    const keys = [...request.keys];
+    const modelId = request.modelId;
+    const results: ChannelProbeResult[] = [];
+    for (const key of keys) {
+      if (request.signal?.aborted) break;
+      const result = await probe({
+        kind: "key",
+        profile,
+        modelId,
+        apiKey: key,
+        signal: request.signal,
+      });
+      results.push(result);
+      await request.onResult?.(key, result);
+      if (request.signal?.aborted) break;
+    }
+    return results;
+  }
+
+  return { probe, probeBatch, probeKeyBatch };
 
   function successResult(
     request: ChannelProbeRequest,

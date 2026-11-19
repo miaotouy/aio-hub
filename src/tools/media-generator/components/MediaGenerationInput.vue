@@ -60,7 +60,7 @@ const inputManager = useMediaGenInputManager();
 const { isGenerating, abort } = useMediaGenerationManager();
 const { ensureTwoStepReady } = useMiniMaxCoverWorkflow();
 const assetManager = useAssetManager();
-const { getProfileById, saveProfile } = useLlmProfiles();
+const { getProfileById, patchProfileModel } = useLlmProfiles();
 
 const currentTypeConfig = computed(
   () => store.currentConfig.types[store.currentConfig.activeType]
@@ -154,11 +154,10 @@ const updateIncludeContext = async (value: boolean) => {
   const info = resolveSelectedModelInfo();
   if (!info?.profile || !info.model) return;
 
-  if (!info.model.capabilities) info.model.capabilities = {};
-  info.model.capabilities.iterativeRefinement = value;
-
   try {
-    await saveProfile(JSON.parse(JSON.stringify(info.profile)));
+    await patchProfileModel(info.profile.id, info.model.id, {
+      capabilities: { iterativeRefinement: value },
+    });
   } catch (error) {
     logger.error("保存上下文开关到模型配置失败", error);
     customMessage.error("保存上下文开关失败");

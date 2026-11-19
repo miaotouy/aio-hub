@@ -29,6 +29,44 @@ function text(nodes: AstNode[]): string {
 const parse = (input: string) => new CustomParser().parse(input);
 
 describe("Markdown content preservation", () => {
+  // HTML code examples own VCP-looking delimiters; following content resumes normal parsing.
+  it.each([
+    ["<code>", "</code>"],
+    ['<p>它连 <code class="example">', "</code> 本来就是正文</p>"],
+    ['<span style="color: red"><code>', "</code> 后文</span>"],
+    ["<CODE><span>", "</span></CODE >"],
+  ])("keeps a VCP request marker literal inside %s", (open, close) => {
+    const marker = "<<<[TOOL_REQUEST]>>>";
+    const request = `${marker}tool_name:「始」outside「末」<<<[END_TOOL_REQUEST]>>>`;
+    const ast = parse(`前文 ${open}${marker}${close} 后文 ${request}`);
+    const all = flatten(ast);
+    const code = all.find(
+      (node) => node.type === "generic_html" && node.props.tagName === "code"
+    )!;
+    expect(code).toBeDefined();
+    expect(text(code.children ?? [])).toBe(marker);
+    expect(text(ast)).toContain("后文");
+    expect(
+      all.filter((node) => node.type === "vcp_tool").map((node) => node.props)
+    ).toMatchObject([{ tool_name: "outside", closed: true }]);
+  });
+
+  it("preserves pending and multiline HTML code examples as literal protocol text", () => {
+    const content =
+      "<<<[TOOL_REQUEST]>>>\ntool_name:「始」example「末」\n<<<[END_TOOL_REQUEST]>>>";
+    for (const ending of ["", "</code> 后文"]) {
+      const ast = parse(`<code>${content}${ending}`);
+      const code = flatten(ast).find(
+        (node) => node.type === "generic_html" && node.props.tagName === "code"
+      )!;
+      expect(text(code.children ?? [])).toBe(content.replace(/\n/g, ""));
+      expect(
+        flatten(ast).filter((node) => node.type === "vcp_tool")
+      ).toHaveLength(0);
+      if (ending) expect(text(ast)).toContain("后文");
+    }
+  });
+
   it.each(["c++", "c#", "objective-c"])(
     "keeps %s language information out of code content",
     (language) => {

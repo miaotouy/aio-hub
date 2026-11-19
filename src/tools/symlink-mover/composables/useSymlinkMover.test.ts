@@ -14,9 +14,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@/platform/native/core";
+import { isElectronRuntime } from "@/platform/core/env";
 import { listen } from "@/platform/native/events";
 import { useSymlinkMoverLogic } from "./useSymlinkMover";
 vi.mock("@/platform/native/events", () => ({ listen: vi.fn() }));
+vi.mock("@/platform/core/env", () => ({
+  isElectronRuntime: vi.fn(() => true),
+}));
 vi.mock("@/utils/logger", () => ({
   createModuleLogger: () => ({ info: vi.fn(), debug: vi.fn() }),
 }));
@@ -35,6 +39,7 @@ vi.mock("@/utils/errorHandler", () => ({
 let logic: ReturnType<typeof useSymlinkMoverLogic>;
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(isElectronRuntime).mockReturnValue(true);
   logic = useSymlinkMoverLogic();
 });
 afterEach(async () => {
@@ -102,5 +107,21 @@ describe("symlink frontend task ownership", () => {
     expect(onProgress).toHaveBeenCalledOnce();
     await logic.dispose();
     expect(unlisten).toHaveBeenCalledOnce();
+  });
+});
+
+// Native command payloads must retain the common operation parameters across hosts.
+it("submits recursive link operations with the Tauri command signature", async () => {
+  vi.mocked(isElectronRuntime).mockReturnValue(false);
+  vi.mocked(invoke).mockResolvedValue("done");
+  await logic.moveAndLink(options);
+  expect(invoke).toHaveBeenCalledWith("move_and_link", {
+    ...options,
+    baseSourceDir: undefined,
+  });
+  await logic.createLinksOnly(options);
+  expect(invoke).toHaveBeenCalledWith("create_links_only", {
+    ...options,
+    baseSourceDir: undefined,
   });
 });

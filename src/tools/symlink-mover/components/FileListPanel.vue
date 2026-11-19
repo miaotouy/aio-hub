@@ -15,7 +15,9 @@
 -->
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
+import { platform } from "@/platform/native/os";
+import { getTargetPreview } from "../targetPreview";
 import {
   Delete,
   Document,
@@ -27,10 +29,14 @@ import { customMessage } from "@/utils/customMessage";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
 import FileListItem from "./FileListItem.vue";
-import type { FileItem } from "../types";
+import type { FileItem, OperationMode } from "../types";
 
 interface Props {
   files: FileItem[];
+  targetDirectory: string;
+  mirrorMode: boolean;
+  baseSourceDir: string;
+  operationMode: OperationMode;
   disabled?: boolean;
 }
 
@@ -45,6 +51,17 @@ const emit = defineEmits<{
 }>();
 
 const sourcePathInput = ref("");
+const windows = platform() === "windows";
+const previews = computed(() =>
+  props.files.map((file) =>
+    getTargetPreview(
+      file.path,
+      props.targetDirectory,
+      props.mirrorMode ? props.baseSourceDir : undefined,
+      windows
+    )
+  )
+);
 
 const addSourcePathFromInput = () => {
   if (props.disabled) return;
@@ -134,6 +151,8 @@ const clearFiles = () => {
             v-for="(file, index) in files"
             :key="file.path"
             :file="file"
+            :preview="previews[index]"
+            :target-label="operationMode === 'move' ? '搬家至' : '链接位置'"
             :disabled="disabled"
             @remove="emit('remove-file', index)"
           />

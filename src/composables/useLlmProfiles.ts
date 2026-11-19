@@ -82,9 +82,10 @@ const profiles = ref<LlmProfile[]>([]);
 const isLoaded = ref(false);
 let loadingPromise: Promise<void> | null = null;
 let secretVaultReady = false;
-let committedSecretRevision: string | null = null;
+const revision = ref<string | null>(null);
 let committedSecrets: LlmSecretMap = {};
-let profileWriteQueue: Promise<void> = Promise.resolve();
+let committedProfiles: LlmProfile[] = [];
+let profileWriteQueue: Promise<unknown> = Promise.resolve();
 
 export function useLlmProfiles() {
   /**
@@ -93,51 +94,74 @@ export function useLlmProfiles() {
   const normalizeProfile = (profile: any) =>
     normalizeLlmProfile(profile, normalizeIconPath);
 
-  const persistProfiles = async (nextProfiles: LlmProfile[]) => {
+  const persistProfiles = async (
+    nextProfiles: LlmProfile[],
+    expectedRevision = revision.value
+  ): Promise<LlmProfilesSnapshot> => {
+    if (!secretVaultReady)
+      throw new Error("渠道配置尚未成功加载，请刷新后重试");
+    let saved: LlmProfilesSnapshot;
     if (getElectronBridge()) {
-      // Capture before waiting: later edits must not change an already queued write.
-      const snapshot = JSON.parse(JSON.stringify(nextProfiles)) as LlmProfile[];
-      const task = profileWriteQueue
-        .catch(() => {})
-        .then(async () => {
-          if (!secretVaultReady)
-            throw new Error("渠道配置尚未成功加载，请刷新后重试");
-          const saved = await request<LlmProfilesSnapshot>("llm.config.save", {
-            profiles: snapshot,
-            expectedRevision: committedSecretRevision,
-          });
-          committedSecretRevision = saved.revision;
+      saved = await request<LlmProfilesSnapshot>("llm.config.save", {
+        profiles: nextProfiles,
+        expectedRevision,
+      });
+    } else {
+      if (expectedRevision !== revision.value)
+        throw Object.assign(new Error("渠道配置已更新，请刷新后重新保存"), {
+          code: "LLM_CONFIG_CONFLICT",
         });
-      profileWriteQueue = task;
-      return task;
+      const nextSecrets = extractLlmSecrets(nextProfiles);
+      const nextRevision = createLlmSecretRevision();
+      await secretVault.stage({
+        revision: nextRevision,
+        secrets: nextSecrets,
+        previousRevision: revision.value,
+        previousSecrets: committedSecrets,
+      });
+      await configManager.save({
+        profiles: stripLlmSecrets(nextProfiles),
+        secretRevision: nextRevision,
+      });
+      committedSecrets = nextSecrets;
+      saved = { profiles: nextProfiles, revision: nextRevision };
     }
-    if (!secretVaultReady) {
-      throw new Error("LLM 密钥仓库尚未成功加载，已阻止覆盖保存");
-    }
-
-    const nextSecrets = extractLlmSecrets(nextProfiles);
-    const nextRevision = createLlmSecretRevision();
-    await secretVault.stage({
-      revision: nextRevision,
-      secrets: nextSecrets,
-      previousRevision: committedSecretRevision,
-      previousSecrets: committedSecrets,
-    });
-    await configManager.save({
-      profiles: stripLlmSecrets(nextProfiles),
-      secretRevision: nextRevision,
-    });
-
-    committedSecretRevision = nextRevision;
-    committedSecrets = nextSecrets;
+    committedProfiles = JSON.parse(JSON.stringify(saved.profiles));
+    profiles.value = JSON.parse(JSON.stringify(saved.profiles));
+    revision.value = saved.revision;
+    return saved;
   };
+
+  const enqueueWrite = <T>(operation: () => Promise<T>): Promise<T> => {
+    const task = profileWriteQueue.catch(() => {}).then(operation);
+    profileWriteQueue = task;
+    return task;
+  };
+
+  const writeProfiles = (
+    update: (latest: LlmProfile[]) => LlmProfile[],
+    expectedRevision?: string | null
+  ) =>
+    enqueueWrite(async () => {
+      try {
+        // A failed initial load has no usable revision. Recover it before building a write.
+        if (!secretVaultReady) await loadProfiles(true);
+        return await persistProfiles(
+          update(JSON.parse(JSON.stringify(committedProfiles))),
+          expectedRevision === undefined ? revision.value : expectedRevision
+        );
+      } catch (error) {
+        errorHandler.error(error, "保存 LLM 配置失败");
+        throw error;
+      }
+    });
 
   /**
    * 从文件系统加载配置（支持 localStorage 迁移）
    */
-  const loadProfiles = async () => {
+  const loadProfiles = async (force = false) => {
     // 如果已经加载完成，直接返回
-    if (isLoaded.value) return;
+    if (isLoaded.value && !force) return;
 
     // 如果正在加载中，返回现有的 promise
     if (loadingPromise) return loadingPromise;
@@ -151,7 +175,8 @@ export function useLlmProfiles() {
           const snapshot =
             await request<LlmProfilesSnapshot>("llm.config.load");
           profiles.value = snapshot.profiles.map(normalizeProfile);
-          committedSecretRevision = snapshot.revision;
+          committedProfiles = JSON.parse(JSON.stringify(profiles.value));
+          revision.value = snapshot.revision;
           secretVaultReady = true;
           const stored =
             profiles.value.length === 0
@@ -168,8 +193,7 @@ export function useLlmProfiles() {
               });
             }
             if (Array.isArray(legacy)) {
-              profiles.value = legacy.map(normalizeProfile);
-              await persistProfiles(profiles.value);
+              await persistProfiles(legacy.map(normalizeProfile));
               localStorage.removeItem(STORAGE_KEY);
             }
           }
@@ -213,7 +237,8 @@ export function useLlmProfiles() {
         const reconciled = mergeLlmSecrets(normalized, loadedSecrets.secrets);
 
         profiles.value = reconciled.profiles;
-        committedSecretRevision = loadedSecrets.revision;
+        committedProfiles = JSON.parse(JSON.stringify(profiles.value));
+        revision.value = loadedSecrets.revision;
         committedSecrets = loadedSecrets.secrets;
         secretVaultReady = true;
 
@@ -246,8 +271,9 @@ export function useLlmProfiles() {
         secretVaultReady = false;
         errorHandler.error(error, "加载 LLM 配置失败");
         // 渠道结构已读到就保留，仅密钥不可用；secretVaultReady=false 已阻止覆盖保存
-        profiles.value = resolvedProfiles ?? [];
-        isLoaded.value = true;
+        if (!force) profiles.value = resolvedProfiles ?? [];
+        isLoaded.value = false;
+        if (force) throw error;
       } finally {
         loadingPromise = null;
       }
@@ -256,93 +282,68 @@ export function useLlmProfiles() {
     return loadingPromise;
   };
 
-  /**
-   * 保存配置到文件系统
-   */
-  const saveToStorage = async () => {
-    try {
-      logger.debug("保存 LLM 配置到文件系统", {
-        profileCount: profiles.value.length,
-      });
-      // revision 快照链确保两份文件部分写入时可回退到最后一次完整提交
-      await persistProfiles(profiles.value);
-      logger.info("LLM 配置保存成功");
-    } catch (error) {
-      errorHandler.error(error, "保存 LLM 配置失败", {
-        context: { profileCount: profiles.value.length },
-      });
-      throw error;
-    }
+  /** Full drafts carry the revision at which editing began. */
+  const saveProfile = (
+    value: LlmProfile,
+    options: { expectedRevision?: string | null } = {}
+  ) => {
+    const profile = migrateAggregateProfile(JSON.parse(JSON.stringify(value)));
+    // Inserting a fresh id is a queued domain operation; existing drafts keep their original CAS baseline.
+    const creating =
+      !committedProfiles.some((item) => item.id === profile.id) &&
+      (options.expectedRevision == null ||
+        options.expectedRevision === revision.value);
+    const expectedRevision = creating
+      ? undefined
+      : options.expectedRevision === undefined
+        ? revision.value
+        : options.expectedRevision;
+    return writeProfiles((latest) => {
+      const index = latest.findIndex((item) => item.id === profile.id);
+      const existing = latest[index];
+      const merged = { ...existing, ...profile };
+      if (existing && !Array.isArray(profile.apiKeys))
+        merged.apiKeys = existing.apiKeys;
+      if (
+        existing &&
+        (!profile.customHeaders || typeof profile.customHeaders !== "object")
+      )
+        merged.customHeaders = existing.customHeaders;
+      const normalized = normalizeDeepSeekProfile(merged);
+      if (index < 0) latest.push(normalized);
+      else latest[index] = normalized;
+      return latest;
+    }, expectedRevision).then((saved) => ({
+      value: JSON.parse(
+        JSON.stringify(saved.profiles.find((item) => item.id === profile.id)!)
+      ) as LlmProfile,
+      revision: saved.revision,
+    }));
   };
 
-  /**
-   * 添加或更新配置
-   */
-  const saveProfile = async (profile: LlmProfile) => {
-    profile = migrateAggregateProfile(profile);
-    try {
-      const index = profiles.value.findIndex((p) => p.id === profile.id);
-      if (index !== -1) {
-        // 更新现有配置
-        logger.info("更新 LLM 配置", {
-          profileId: profile.id,
-          profileName: profile.name,
-        });
-        // 调用方可能只回写局部字段（例如刷新模型后）：未提供有效值的敏感字段
-        // 保留原值，避免不完整的对象把已保存的 API Key、自定义请求头静默清空
-        const existing = profiles.value[index];
-        const merged: LlmProfile = { ...existing, ...profile };
-        if (!Array.isArray(profile.apiKeys)) {
-          merged.apiKeys = existing.apiKeys;
-        }
-        if (
-          !profile.customHeaders ||
-          typeof profile.customHeaders !== "object"
-        ) {
-          merged.customHeaders = existing.customHeaders;
-        }
-        profiles.value[index] = normalizeDeepSeekProfile(merged);
-      } else {
-        // 添加新配置
-        logger.info("添加新 LLM 配置", {
-          profileId: profile.id,
-          profileName: profile.name,
-        });
-        profiles.value.push(normalizeDeepSeekProfile(profile));
-      }
-      await saveToStorage();
-    } catch (error) {
-      errorHandler.error(error, "保存 LLM 配置失败", {
-        context: {
-          profileId: profile.id,
-          profileName: profile.name,
-        },
-      });
-      throw error;
-    }
+  /** Apply a model field update against the confirmed snapshot inside the write queue. */
+  const patchProfileModel = (
+    profileId: string,
+    modelId: string,
+    patch: Partial<LlmModelInfo>
+  ) => {
+    const changes = JSON.parse(JSON.stringify(patch)) as Partial<LlmModelInfo>;
+    return writeProfiles((latest) => {
+      const model = latest
+        .find((item) => item.id === profileId)
+        ?.models.find((item) => item.id === modelId);
+      if (!model) throw new Error("模型已移除，请重新选择模型");
+      const capabilities = changes.capabilities
+        ? { ...model.capabilities, ...changes.capabilities }
+        : model.capabilities;
+      Object.assign(model, changes, { id: modelId, capabilities });
+      return latest;
+    });
   };
 
-  /**
-   * 删除配置
-   */
-  const deleteProfile = async (id: string) => {
-    try {
-      const index = profiles.value.findIndex((p) => p.id === id);
-      if (index !== -1) {
-        const profileName = profiles.value[index].name;
-        logger.info("删除 LLM 配置", { profileId: id, profileName });
-        profiles.value.splice(index, 1);
-        await saveToStorage();
-      } else {
-        logger.warn("尝试删除不存在的配置", { profileId: id });
-      }
-    } catch (error) {
-      errorHandler.error(error, "删除 LLM 配置失败", {
-        context: { profileId: id },
-      });
-      throw error;
-    }
-  };
+  const deleteProfile = (id: string) =>
+    writeProfiles((latest) => latest.filter((item) => item.id !== id));
+  const refreshProfiles = () => enqueueWrite(() => loadProfiles(true));
 
   /**
    * 根据 ID 获取配置
@@ -380,43 +381,19 @@ export function useLlmProfiles() {
     );
   });
 
-  /**
-   * 切换配置的启用状态
-   */
-  const toggleProfileEnabled = async (id: string) => {
-    try {
-      const profile = profiles.value.find((p) => p.id === id);
-      if (profile) {
-        profile.enabled = !profile.enabled;
-        logger.info("切换 LLM 配置状态", {
-          profileId: id,
-          profileName: profile.name,
-          enabled: profile.enabled,
-        });
-        await saveToStorage();
-      } else {
-        logger.warn("尝试切换不存在的配置", { profileId: id });
-      }
-    } catch (error) {
-      errorHandler.error(error, "切换配置状态失败", {
-        context: { profileId: id },
-      });
-      throw error;
-    }
-  };
+  const toggleProfileEnabled = (id: string) =>
+    writeProfiles((latest) => {
+      const profile = latest.find((item) => item.id === id);
+      if (profile) profile.enabled = !profile.enabled;
+      return latest;
+    });
 
-  /**
-   * 更新配置顺序
-   */
-  const updateProfilesOrder = async (newProfiles: LlmProfile[]) => {
-    try {
-      logger.info("更新 LLM 配置顺序", { count: newProfiles.length });
-      profiles.value = newProfiles;
-      await saveToStorage();
-    } catch (error) {
-      errorHandler.error(error, "更新 LLM 配置顺序失败");
-      throw error;
-    }
+  const updateProfilesOrder = (ordered: LlmProfile[]) => {
+    const ids = ordered.map((item) => item.id);
+    return writeProfiles((latest) => [
+      ...ids.flatMap((id) => latest.filter((item) => item.id === id)),
+      ...latest.filter((item) => !ids.includes(item.id)),
+    ]);
   };
 
   const { materializeModel } = useModelMetadata();
@@ -493,6 +470,9 @@ export function useLlmProfiles() {
   return {
     profiles,
     isLoaded,
+    revision,
+    refreshProfiles,
+    patchProfileModel,
     loadProfiles,
     saveProfile,
     deleteProfile,

@@ -198,7 +198,7 @@ const {
   onWheel,
   onKeydown,
   onPointerdown,
-  followBottom,
+  onContentResize: maintainScrollPosition,
   pauseFollowing,
 } = useMessageScrollAnchor({
   container: messagesContainer,
@@ -254,7 +254,9 @@ const switchingOriginalScrollTop = ref<number>(0);
 // -------------------- ResizeObserver：内容高度变化时自动跟随底部 --------------------
 let resizeObserver: ResizeObserver | null = null;
 const onContentResize = () => {
-  followBottom();
+  // 首次展开历史正文时，浏览器锚定可能被本帧的行高更新抑制。
+  // 先按上一次阅读快照补偿，再记录布局完成后的可见消息。
+  maintainScrollPosition();
   // content-visibility 展开可能只改变消息坐标，scrollTop 保持原值。
   updateVisibleIndex();
   readingArea.refresh();

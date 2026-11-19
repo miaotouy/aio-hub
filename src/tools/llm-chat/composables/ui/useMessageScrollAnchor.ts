@@ -205,6 +205,19 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
     followBottom();
   };
 
+  const onContentResize = () => {
+    const container = options.container.value;
+    // 滚轮的默认滚动可能已生效，而 scroll 事件仍在等待派发。
+    // 此时先让滚动回调更新阅读快照，避免拿旧偏移抵消用户刚完成的上翻。
+    if (
+      container &&
+      resumeTop === null &&
+      Math.abs(container.scrollTop - lastKnownScrollTop.value) < 0.5
+    )
+      preserveReadingPosition();
+    followBottom();
+  };
+
   const suspend = () => {
     active = false;
   };
@@ -224,6 +237,7 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
     cancelResume,
     rememberReadingAnchor,
     preserveReadingPosition,
+    onContentResize,
     navigateToMessage,
     shouldStickToBottom,
     isNearBottom,

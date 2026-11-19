@@ -340,6 +340,43 @@ it("停用后继续生成，返回时延续底部跟随意图", () => {
 });
 
 // Protect the reading message when restored history above it changes height.
+it("首次展开历史正文时补偿阅读消息偏移，保留尚未派发 scroll 的用户位移", () => {
+  let messageTop = 650;
+  const { element, anchor, resize } = createScroller((id) =>
+    id === "reading" ? messageTop - element.scrollTop : undefined
+  );
+  anchor.onWheel(new WheelEvent("wheel", { deltaY: -30 }));
+  element.scrollTop = 700;
+  anchor.onScroll();
+  anchor.rememberReadingAnchor({ id: "reading", offset: -50 });
+
+  // 浏览器未补偿前方正文增加的高度，消息相对视口下移。
+  messageTop += 48;
+  resize(3000);
+  anchor.onContentResize();
+  expect(element.scrollTop).toBe(748);
+  anchor.onScroll();
+
+  // 下一次上翻先改变了 scrollTop；ResizeObserver 可能早于 scroll 回调。
+  anchor.onWheel(new WheelEvent("wheel", { deltaY: -220 }));
+  element.scrollTop = 528;
+  anchor.onContentResize();
+  expect(element.scrollTop).toBe(528);
+  anchor.onScroll();
+  anchor.rememberReadingAnchor({ id: "reading", offset: 170 });
+  messageTop += 42;
+  resize(3042);
+  anchor.onContentResize();
+  expect(element.scrollTop).toBe(570);
+
+  // 浏览器已自行补偿时，保留它完成的位移。
+  anchor.onScroll();
+  messageTop += 36;
+  element.scrollTop += 36;
+  anchor.onContentResize();
+  expect(element.scrollTop).toBe(606);
+});
+
 it("按消息偏移补偿重建高度，恢复期间保持原锚点，用户滚动后交还控制", () => {
   let messageTop = 650;
   const { element, anchor, resize } = createScroller((id) =>
